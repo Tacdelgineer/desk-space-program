@@ -19,8 +19,13 @@ Everything below was learned the hard way. Read it before touching the code.
   each token, answer types out at the estimated speed) → done. MoE models flash only a few
   cells per token. Too-big models overflow in magenta.
 - **UI:** retro screenprint theme (one CSS block marked `THEME: retro screenprint`), answer
-  panel with a big red speed number, side race against RTX 5090 and Mac Studio (bars only),
-  controls bar at the bottom, part labels with leader lines, dialogs for What's real and Keys.
+  panel with a big red speed number, side race against the other three machines (bars with the
+  status written in them, a measured or reported tag per row), controls bar at the bottom, part
+  labels with leader lines, dialogs for What's real and Keys.
+- **Machines (switcher, M):** DGX Spark, RTX 5090, Mac Studio M3 Ultra, AMD Strix Halo (Ryzen AI
+  Max+ 395, 128 GB, AMD's own 150 x 150 mm mini PC: the Spark's rival with about the same memory
+  speed and half the GPU math, drawn as a GPU block half the size; graphite case, hex back wall,
+  cooler lifted straight up).
 - **Keys:** Space launch, 1–4 camera shots, M next machine, C orbit, H hide UI, F fullscreen.
 
 ## Stack and why
@@ -83,8 +88,16 @@ answer     = 150 tokens; prompts 300 / 8,000 / 32,000 tokens
 
 Machines: Spark 128 GB, reserve 8, 273 GB/s, 125 TFLOPS placeholder. RTX 5090 32 GB, reserve
 1.5, 1,792 GB/s, 210 placeholder. Mac Studio M3 Ultra 256 GB config (the one the creator owns;
-it was 96 GB before Session A), 819 GB/s, 28 placeholder. The numbers now live in
-`labs/data/machines.json` and `models.json`, each tagged `"source": "estimated"`.
+it was 96 GB before Session A), 819 GB/s, 28 placeholder. Strix Halo 128 GB, reserve 8 (Linux
+lets its GPU map about half until `ttm.pages_limit` raises it to 120 GiB), 256 GB/s, 59.4 TFLOPS
+estimated from 40 CUs at 2,900 MHz. The numbers live in `labs/data/machines.json` and
+`models.json`: the first three machines `"estimated"`, the Strix Halo `"reported"` with links.
+
+Three kinds of number: **measured** on the creator's Spark (`labs/data/measured/`), **reported** by
+someone else with a link (`labs/data/reported/`: spec sheets, published llama.cpp runs), **estimated**
+by the formulas above. A reported run stands in for the estimate like a measured one; the Strix
+Halo's come from local-llm-benchmarks.dev (llama-server, 2,048-token prompts at depth 0 and 8,192)
+and, for Gemma 4 E4B's writing, huppiflupp/strix-halo-llm-speeds.
 
 The lineup since Session C: Gemma 4 E4B, Qwen3.6 35B-A3B, Qwen3.8 27B, Qwen3.8-Flash-Next (125.7B plus a
 51.2B n-gram table), Qwen3.8-Max (2.4T, estimate only). The Spark is measured by `live/` (llama.cpp
@@ -113,7 +126,9 @@ labs/
   machines/spark.js    layout: where each part sits, and animate()
   machines/rtx5090.js  (Session B)
   machines/m3ultra.js  (Session B)
-  data/machines.json   specs with a measured/estimated tag per number
+  machines/strixhalo.js  (Session D)
+  data/machines.json   specs with a measured/reported/estimated tag per number
+  data/measured/, data/reported/   real runs: the Spark's, and published ones for the Strix Halo
   data/models.json
   missions/01-liftoff/index.html + mission.js   pulls the pieces together
 dist/                  (repo root) build output, one file per mission plus the hub page
@@ -155,7 +170,7 @@ Not now: drag-to-load crates, pulling the cooler off by hand, sound, share links
   check and say so in the report.
 - **Measurements** (`llama-bench`) only happen on the DGX Spark, in a local session.
 - **The Shorts pack** is described in `docs/shorts-template.md`. Every episode ends on a Mission
-  Report with three columns (DGX Spark, RTX 5090, Mac Studio) and rows FITS?, TOKENS/S,
-  DONE IN. Those numbers must come from the data files, never typed by hand.
+  Report with three columns (DGX Spark, RTX 5090, Mac Studio; a fourth, Strix Halo, from
+  episode 9 on) and rows FITS?, TOKENS/S, DONE IN. Those numbers must come from the data files, never typed by hand.
 - **`EPISODES.md`** is the list of Shorts. Each one has a preset link that opens the lab in the
   exact state to film. Keep it in step with the missions.

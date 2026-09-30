@@ -1,8 +1,8 @@
 /* =========================================================
    MISSION 01, LIFTOFF: the choices, the words, and the simulation that
    goes load -> reading -> writing -> done. Ties the kit together.
-   Three machines (switcher), a model-size handle, a crew dial, and URL presets for filming:
-     ?machine=spark|rtx5090|mac &model=q27 (a preset id) or model=45 (billions, dense)
+   Four machines (switcher), a model-size handle, a crew dial, and URL presets for filming:
+     ?machine=spark|rtx5090|mac|strix &model=q27 (a preset id) or model=45 (billions, dense)
      &bits=4|8|16 &prompt=q|doc|code &crew=1..64 &shot=1..4 &speed=1|5 &record=1
    record=1 hides the interface and launches as soon as the model has loaded.
    Live mode (section 6) switches on when live/bridge.mjs serves the page: a chat box that runs a real model
@@ -15,8 +15,8 @@
   const { ANSWER, pick, calc, sizedModel, fmtS, fmtT, fmtGB, pct, plain, archModel } = DSP.model;
   const fmtB = b => b >= 1000 ? (b / 1000).toFixed(1) + 'T' : (b < 10 ? (Math.round(b * 10) / 10) : Math.round(b)) + 'B';
 
-  DSP.model.loadData(['data-machines', 'data-models', 'data-measured']).then(([machinesFile, modelsFile, measuredFile]) => {
-    DSP.model.setMeasured(measuredFile);
+  DSP.model.loadData(['data-machines', 'data-models', 'data-measured', 'data-reported-strix']).then(([machinesFile, modelsFile, measuredFile, strixFile]) => {
+    DSP.model.setRuns(measuredFile, strixFile);
     start(machinesFile, modelsFile);
   }).catch(err => {
     console.error(err);
@@ -32,7 +32,8 @@
     const WORDS = {
       spark: { short: 'DGX Spark', the: 'the Spark', sticker: 'Inside a DGX Spark, the model lives in the memory chips. To write each token, the whole model crosses the memory bus to the GPU. The GPU does its math in a flash, then waits for the next delivery.' },
       rtx5090: { short: 'RTX 5090', the: 'the 5090', sticker: 'Inside an RTX 5090, the model lives in 16 memory chips ringed around the GPU. Count the lanes: its bus is twice as wide as the Spark\'s, so tokens arrive fast. But only 32 GB fits.' },
-      mac: { short: 'Mac Studio', the: 'the Mac', sticker: 'Inside a Mac Studio M3 Ultra, the memory sits on the chip package itself, one short hop from the GPU cores. Count the lanes: four times as many as the Spark\'s.' }
+      mac: { short: 'Mac Studio', the: 'the Mac', sticker: 'Inside a Mac Studio M3 Ultra, the memory sits on the chip package itself, one short hop from the GPU cores. Count the lanes: four times as many as the Spark\'s.' },
+      strix: { short: 'Strix Halo', the: 'the Strix Halo', sticker: 'Inside a Strix Halo mini PC (AMD Ryzen AI Max+ 395), the model sits in 8 memory packages around one big chip. Count the lanes: 8, like the Spark, so it writes about as fast. Its GPU has half the math, so it reads slower.' }
     };
     const MACHINES = machinesFile.machines.map(plain).map(m => Object.assign(m, { short: WORDS[m.id].short }));
     const MODELS = modelsFile.models.map(archModel);
@@ -50,7 +51,7 @@
     const q = new URLSearchParams(location.search);
     const alias = (v, map) => map[String(v || '').toLowerCase()];
     const start0 = {
-      machine: alias(q.get('machine'), { spark: 'spark', dgx: 'spark', rtx5090: 'rtx5090', '5090': 'rtx5090', rtx: 'rtx5090', mac: 'mac', m3ultra: 'mac', studio: 'mac' }) || 'spark',
+      machine: alias(q.get('machine'), { spark: 'spark', dgx: 'spark', rtx5090: 'rtx5090', '5090': 'rtx5090', rtx: 'rtx5090', mac: 'mac', m3ultra: 'mac', studio: 'mac', strix: 'strix', strixhalo: 'strix', halo: 'strix', amd: 'strix', ryzen: 'strix', '395': 'strix' }) || 'spark',
       prec: alias(q.get('bits'), { 4: '4', 8: '8', 16: '16' }) || '4',
       prompt: alias(q.get('prompt'), { q: 'q', question: 'q', doc: 'doc', document: 'doc', code: 'code', codebase: 'code' }) || 'q',
       speed: alias(q.get('speed'), { 1: '1', 5: '5' }) || '1',
@@ -132,13 +133,13 @@
         (sel.crew > 1 ? sel.crew + ' requests, each with ' : '') + prompt.name + ' (' + prompt.tokens.toLocaleString('en-US') + ' tokens). ' + w.the[0].toUpperCase() + w.the.slice(1) + ' has <b>' + p.usable + ' GB</b> free.';
       if (model.moe) s += ' Mixture of experts: only ' + fmtB(model.active) + ' of its ' + fmtB(model.total) + ' parameters work on each token, so each token reads far less.';
       if (model.table) s += ' Plus a ' + fmtB(model.table) + '-parameter lookup table (the amber cells): it takes <b>' + fmtGB(p.tableGB) + ' GB</b>, but each token reads only a few rows of it.';
-      if (p.measured) s += ' The ' + fmtGB(p.weightsGB) + ' GB is the real ' + p.measured.quant + ' file.';
+      if (p.measured && p.measured.weightsGB != null) s += ' The ' + fmtGB(p.weightsGB) + ' GB is the real ' + p.measured.quant + ' file.';
       document.getElementById('payload-line').innerHTML = s;
       syncSize(); syncCrew();
       setTerm('');
       ui.renderRace(sim); updateLaunchBtn();
-      const nMeas = sim.others.filter(o => o.p.measured).length;
-      document.getElementById('race-tag').textContent = nMeas ? (nMeas === sim.others.length ? 'Measured' : 'Spark measured, the rest estimated') : 'Estimated';
+      const nRuns = sim.others.filter(o => o.p.fits && o.p.measured).length;
+      document.getElementById('race-tag').textContent = !nRuns ? 'All estimated' : nRuns === sim.others.length ? 'All from real runs' : 'Untagged: estimated';
       if (live.enabled) syncChatModel();
       document.getElementById('race-note').textContent = 'Who finishes first? Guess, then launch.';
     }
@@ -292,6 +293,18 @@
       document.getElementById('race-note').textContent = s;
     }
 
+    // Where the speeds on the big number come from, in words
+    function runLine(p, w) {
+      const r = p.measured;
+      if (!r) return 'Estimated for the ' + w.short + '.';
+      if (r.source === 'measured') return 'Measured on the ' + w.short + ' (' + r.quant + ', llama.cpp).';
+      return 'Reported for the ' + w.short + ' by ' + r.by + ' (' + r.quant + ', llama.cpp)' + (p.readSource === 'estimated' ? '; reading estimated.' : '.');
+    }
+    function sourceWords(p) {
+      if (p.source === p.readSource) return { measured: 'Measured.', reported: 'Reported by others.', estimated: 'Estimated.' }[p.source];
+      return 'Writing ' + p.source + ', reading ' + p.readSource + '.';
+    }
+
     const statusEl = document.getElementById('status'), bigTag = document.getElementById('bigtag');
     function updateUI() {
       if (live.on) return updateLiveUI();
@@ -315,12 +328,15 @@
       let n = '-', u = 'doesn\'t fit in memory', line = p.weightsGB > p.usable ? 'Pick a smaller model, 4-bit, or another machine.' : 'The prompts don\'t fit. Pick a smaller crew or a shorter prompt.';
       if (p.fits) {
         if (sim.phase === 'reading') { n = fmtT(p.readTps); u = 'tokens per second, reading ' + (crew > 1 ? crew + ' prompts' : 'your prompt'); line = 'The GPU is flat out. Reading takes ' + fmtS(p.readS) + '.'; }
-        else if (crew > 1) { n = fmtT(p.totalTps); u = 'tokens per second, ' + crew + ' answers at once'; line = 'Each answer gets ' + fmtT(p.writeTps) + ' tokens per second.' + (p.gpuMax ? ' The GPU is maxed out.' : '') + (p.scaledFrom ? ' Estimated from one measured request on the ' + w.short + '.' : ' Estimated for the ' + w.short + '.'); }
-        else { n = fmtT(p.writeTps); u = 'tokens per second, writing the answer'; line = sim.phase === 'done' ? 'Reading took ' + fmtS(p.readS) + ', writing took ' + fmtS(p.writeS) + (p.measured ? '. Measured.' : '. Estimated.') : p.measured ? 'Measured on the ' + w.short + ' (' + p.measured.quant + ', llama.cpp).' : 'Estimated for the ' + w.short + '.'; }
+        else if (crew > 1) { n = fmtT(p.totalTps); u = 'tokens per second, ' + crew + ' answers at once'; line = 'Each answer gets ' + fmtT(p.writeTps) + ' tokens per second.' + (p.gpuMax ? ' The GPU is maxed out.' : '') + (p.scaledFrom ? ' Estimated from one ' + p.scaledFrom.source + ' request on the ' + w.short + '.' : ' Estimated for the ' + w.short + '.'); }
+        else { n = fmtT(p.writeTps); u = 'tokens per second, writing the answer'; line = sim.phase === 'done' ? 'Reading took ' + fmtS(p.readS) + ', writing took ' + fmtS(p.writeS) + '. ' + sourceWords(p) : runLine(p, w); }
       }
       if (bn.textContent !== n) bn.textContent = n;
       if (bu.textContent !== u) bu.textContent = u;
-      bigTag.hidden = !(p.fits && p.measured && crew === 1);
+      const src = sim.phase === 'reading' ? p.readSource : p.source;        // the big number is the reading speed while reading
+      const tag = p.fits && crew === 1 && src !== 'estimated' ? src : '';
+      bigTag.hidden = !tag;
+      if (tag && bigTag.textContent !== tag) { bigTag.textContent = tag; bigTag.classList.toggle('rep', tag === 'reported'); }
       if (sl.textContent !== line) sl.textContent = line;
       // labels
       const used = Math.min(p.needGB, p.usable);
@@ -512,7 +528,12 @@
       const clk = Math.max(...runs.map(r => r.gpuClockMaxMHz || 0));
       li.textContent = 'Measured speeds replace the estimates where they exist: the DGX Spark running ' + names.join(', ') + ' with llama.cpp\'s llama-server, ' +
         'the question (300 tokens) and document (8,000 tokens) prompts, 150 tokens out, one request, the middle of three runs (' + runs.map(r => r.date).sort().pop() + (clk ? ', GPU clock at most ' + clk.toLocaleString('en-US') + ' MHz' : '') + '). ' +
+        'Reported speeds stand in for the Strix Halo: someone else\'s published llama.cpp runs on a Ryzen AI Max+ 395 with 128 GB (' + reportedNames('strix') + '; the sources are linked in data/reported/strix.json). ' +
         'Everything else is estimated: the RTX 5090 and the Mac Studio, 8- and 16-bit, the codebase prompt, crews of two or more, Qwen3.8-Max, and the GPU math used.';
+    }
+    function reportedNames(id) {
+      const f = DSP.model.measuredFor(id), runs = (f && f.runs) || [];
+      return [...new Set(runs.map(r => r.name + (r.ppTps == null ? ' (writing only)' : '')))].join(', ');
     }
     realText();
 

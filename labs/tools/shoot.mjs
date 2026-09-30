@@ -15,6 +15,7 @@
 //                         (ANGLE on Vulkan fails on the GB10's driver in the shadow pass; see HANDOFF.)
 //   SHOOT_SIZE=1080x1920  another final size, e.g. a 9:16 Short
 //   SHOOT_UI=1            keep the interface (panels, labels) in the picture
+//   SHOOT_PHASE=reading   halfway through reading the prompt instead (use a long prompt: ?prompt=doc)
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -23,7 +24,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const [W, H] = (process.env.SHOOT_SIZE || '1920x1080').split('x').map(Number), STEP_MS = 1000 / 30, WRITING_FRAMES = 90;
-const KEEP_UI = !!process.env.SHOOT_UI;
+const KEEP_UI = !!process.env.SHOOT_UI, PHASE = process.env.SHOOT_PHASE || 'writing';
 const CACHE = path.join(os.tmpdir(), 'dsp-shoot-cache');
 
 const LAUNCH = process.env.SHOOT_GPU
@@ -81,11 +82,12 @@ async function shoot(pagePath, outDir, shots) {
     await page.waitForTimeout(1000);                       // the loading curtain fades in real time
     const hidden = await page.evaluate(() => document.body.classList.contains('hide-ui'));
     if (hidden === KEEP_UI) await page.keyboard.press('h');  // hide the interface (record=1 already has)
-    await page.evaluate(([dt, n]) => {
+    await page.evaluate(([dt, n, phase]) => {
       __lab.launch();
+      if (phase === 'reading') { for (let i = 0; __lab.sim.phase === 'reading' && __lab.sim.t < __lab.sim.plan.readS / 2 && i < 30000; i++) __step(1, dt); return; }
       for (let i = 0; __lab.sim.phase !== 'writing' && i < 3000; i++) __step(1, dt);
       __step(n, dt);
-    }, [STEP_MS, WRITING_FRAMES]);
+    }, [STEP_MS, WRITING_FRAMES, PHASE]);
     await page.setViewportSize({ width: W, height: H });
     await page.waitForTimeout(400);
     await page.evaluate(dt => __step(2, dt), STEP_MS);      // let resize() settle at full size

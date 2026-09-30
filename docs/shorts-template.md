@@ -36,7 +36,9 @@ TEXT STYLES
 MISSION REPORT
   Only numbers from the lab's data file. Add "est." until the Spark is measured.
   FITS? = YES or NO.  TOKENS/S = writing speed.  DONE IN = time to finish the answer.
-  Columns stay in the same order every episode: DGX Spark, RTX 5090, Mac Studio.
+  Columns stay in the same order every episode: DGX Spark, RTX 5090, Mac Studio,
+  and from episode 9 on a fourth, Strix Halo (the background image needs that column).
+  Add "rep." to the Strix Halo's numbers: they are other people's published runs.
 
 FILMING
   Hook and reveal: phone pointed at the screen.

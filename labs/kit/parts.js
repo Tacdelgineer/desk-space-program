@@ -238,11 +238,12 @@
     return { SSD_Y };
   }
 
-  /* ---------- network chip with a small heatsink ---------- */
-  function nic(Y0) {
-    mesh(rbox(1.9, 0.15, 1.9, 0.04), M.epoxy, 4.2, Y0 + 0.075, 5.4);
-    mesh(new T.BoxGeometry(1.7, 0.1, 1.7), M.alu, 4.2, Y0 + 0.2, 5.4);
-    const nicFins = []; for (let i = 0; i < 9; i++) nicFins.push([3.45 + i * 0.19, Y0 + 0.55, 5.4]);
+  /* ---------- network chip with a small heatsink, centred at x, z (the Spark's spot by default) ---------- */
+  function nic(Y0, x, z) {
+    x = x === undefined ? 4.2 : x; z = z === undefined ? 5.4 : z;
+    mesh(rbox(1.9, 0.15, 1.9, 0.04), M.epoxy, x, Y0 + 0.075, z);
+    mesh(new T.BoxGeometry(1.7, 0.1, 1.7), M.alu, x, Y0 + 0.2, z);
+    const nicFins = []; for (let i = 0; i < 9; i++) nicFins.push([x - 0.75 + i * 0.19, Y0 + 0.55, z]);
     scatter(new T.BoxGeometry(0.06, 0.6, 1.6), M.alu, nicFins, true);
   }
 
@@ -253,6 +254,15 @@
     mesh(new T.BoxGeometry(1.4, 1.2, 1.8), M.alu, -1.1 + dx, Y0 + 0.6, -7.05 + dz);
     [0.7, 1.8, 2.9, 4.0].forEach(x => mesh(rbox(0.9, 0.34, 1.3, 0.15), M.alu, x + dx, Y0 + 0.17, -7.3 + dz));
     mesh(new T.BoxGeometry(1.5, 0.6, 1.4), M.alu, 5.6 + dx, Y0 + 0.3, -7.2 + dz);
+  }
+
+  /* ---------- a row of ports from a list: [{ kind, x, z }], kind one of usba (a double stack), rj45, hdmi, dp, usbc ---------- */
+  const PORT = { usba: [1.7, 1.15, 2.4, 0], rj45: [1.4, 1.2, 1.8, 0], hdmi: [1.5, 0.6, 1.4, 0], dp: [1.3, 0.55, 1.3, 0], usbc: [0.9, 0.34, 1.3, 0.15] };
+  function portRow(Y0, list) {
+    list.forEach(p => {
+      const [w, h, d, r] = PORT[p.kind];
+      mesh(r ? rbox(w, h, d, r) : new T.BoxGeometry(w, h, d), M.alu, p.x, Y0 + h / 2, p.z);
+    });
   }
 
   /* ---------- heat pipe along points [[x, y, z], ...] ---------- */
@@ -287,5 +297,5 @@
     return { fan: rotor, ringM };
   }
 
-  DSP.parts = { M, rrShape, rbox, scatter, tuneEnv, stand, pcb, board, tiles, gb10, memory, inductors, polymerCaps, ceramicCaps, resistors, ssd, nic, ports, heatPipe, cooler, fan };
+  DSP.parts = { M, rrShape, rbox, scatter, tuneEnv, stand, pcb, board, tiles, gb10, memory, inductors, polymerCaps, ceramicCaps, resistors, ssd, nic, ports, portRow, heatPipe, cooler, fan };
 })(window.DSP = window.DSP || {});

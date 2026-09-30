@@ -3,7 +3,7 @@
 One row per Short. The preset link opens the lab in the exact state to film
 (record mode hides the interface). Report numbers come from `labs/data/`, never by hand:
 `node labs/tools/report.mjs "model=q27&prompt=q&crew=1"` prints them with the source of every input,
-marked (meas.), (est. from meas.) or (est.).
+marked (meas.), (rep.), (est. from meas.), (est. from rep.) or (est.).
 Status: idea → ready (preset works, numbers filled) → filmed → posted.
 
 | # | Mission | Hook (0–1 s) | Setup | Close-up | Status |
@@ -16,6 +16,8 @@ Status: idea → ready (preset works, numbers filled) → filmed → posted.
 | 6 | 01 Liftoff | Inside a 5090 vs inside a Spark | switch machines, Qwen3.6 35B MoE | overview (1) | ready |
 | 7 | 01 Liftoff | No desk can hold this model | Mac, Qwen3.8-Max, 4-bit | memory (2), overflow | ready |
 | 8 | 01 Liftoff | 51 billion parameters it barely touches | Spark, Qwen3.8-Flash-Next, 4-bit | memory (2), amber table cells | ready |
+| 9 | 01 Liftoff | It writes as fast as a DGX Spark, then loses by 15 seconds | Strix Halo vs Spark, Qwen3.8 27B, 4-bit, question then document | GPU (3) while reading | ready |
+| 10 | 01 Liftoff | This mini PC runs a model the RTX 5090 can't load | Strix Halo, Qwen3.8-Flash-Next, 4-bit (then the 5090) | overview (1), all 8 packages fill | ready |
 
 For each episode that turns "ready", fill in underneath:
 
@@ -23,26 +25,33 @@ For each episode that turns "ready", fill in underneath:
 ### Episode N
 Preset link:
 Guess card options: A / B / C
-Mission Report:  subtitle | FITS? | TOKENS/S | DONE IN (Spark, 5090, Mac) | the lesson | next mission
+Mission Report:  subtitle | FITS? | TOKENS/S | DONE IN (Spark, 5090, Mac; from episode 9 on also Strix Halo) | the lesson | next mission
 Source of each number: file + field, measured or estimated
 Shot list: 1) ... 2) ... 3) ...
 ```
 
 Live lab: https://tacdelgineer.github.io/desk-space-program/01-liftoff/ . Preset parameters: `machine` (spark, rtx5090,
-mac), `model` (g4, q36, q27, flash, max, or a size in billions for a dense model), `bits` (4, 8, 16), `prompt` (q, doc, code),
+mac, strix), `model` (g4, q36, q27, flash, max, or a size in billions for a dense model), `bits` (4, 8, 16), `prompt` (q, doc, code),
 `crew` (1–64), `shot` (1–4), `speed` (1, 5), `record=1` (interface hidden, launches once the model has loaded).
-In record mode: keys 1–4 move the camera, Space launches again, M switches to the next machine, H brings the interface back.
+In record mode: keys 1–4 move the camera, Space launches again, M switches to the next machine (Spark, 5090, Mac,
+Strix Halo, round again), H brings the interface back.
 The public page shows the measured numbers once `labs/data/measured/spark.json` is pushed.
 
 **Measured and estimated.** The DGX Spark column is **measured** for the four downloaded models at 4-bit with the
 question (300 tokens) and document (8,000 tokens) prompts, one request: `labs/data/measured/spark.json` (the live
 benchmark, llama.cpp llama-server 2a53ace, 4-bit GGUFs from Unsloth, middle of three runs, 2026-09-30, GPU clock
 capped at about 1,990 MHz). Print "meas." for those. Crews of 2 or more on the Spark are estimated from the measured
-single request ("est."). The RTX 5090 and Mac Studio columns, 8- and 16-bit, the codebase prompt, Qwen3.8-Max and
+single request ("est."). The Strix Halo column (episodes 9 on) is **reported**: other people's published llama.cpp runs
+on a Ryzen AI Max+ 395 with 128 GB, `labs/data/reported/strix.json`, each with its link (Qwen3.8 27B, Qwen3.6 35B MoE and
+Flash-Next reading and writing, Gemma 4 E4B writing only; 4-bit, question and document, one request). Print "rep." for
+those; their quants differ a little from the Spark's and their prompts were 2,048 tokens long (the file says how each
+maps to the lab's prompts). The RTX 5090 and Mac Studio columns, 8- and 16-bit, the codebase prompt, Qwen3.8-Max and
 "GPU math used" are **estimated**: print "est.".
 
 **Sources, the same for every episode.** Machines: `labs/data/machines.json`, fields `memGB`, `reserveGB`, `bw`,
-`tflops` of `spark`, `rtx5090`, `mac`, all `"estimated"`. Models: `labs/data/models.json`, fields `total`, `active`,
+`tflops` of `spark`, `rtx5090`, `mac`, all `"estimated"`; of `strix`, `"reported"` with a link (AMD's spec pages and
+a Strix Halo setup guide for the 120 GB the GPU may use on Linux) except `tflops`, `"estimated"` from AMD's compute-unit
+count and clock. Models: `labs/data/models.json`, fields `total`, `active`,
 `table` and `arch` (from each model's config and checkpoint, `"config"`), and `bpp` of the precision (`"estimated"`).
 Spark measurements: `labs/data/measured/spark.json`, fields `tgTps` (writing), `ppTps` (reading), `weightsGB` (the real
 file). Prompt length: `labs/data/models.json` `prompts[].tokens` (`"chosen"`). Answer length 150 tokens:
@@ -104,4 +113,21 @@ Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machi
 Guess card options: 51 billion of its parameters are read for each word... A) all of them / B) half / C) almost none
 Mission Report: M01 LIFTOFF   QWEN3.8-FLASH-NEXT, 4-BIT | FITS? YES / NO / YES | TOKENS/S 24 (meas.) / NO / 104 (est.) | DONE IN 6.8 s (meas.) / NO / 1.7 s (est.) | A 51B n-gram table sits in memory: each token reads a few rows of it | NEXT: I gave my idle GPU 32 jobs
 Source of each number: the lists above. 51B = `table` of flash (51.2B, from the checkpoint). On the Spark the table is 28.8 GB of the 111 GB file (`tableGB`, `weightsGB`, measured) and stays in the file: llama.cpp reads its rows on demand (`lazyTable` in `models.json`), which is how the full model fits in 121 GiB.
-Shot list: 1) key 2: the amber cells of the table next to the teal weights. 2) Space: the teal cells light by the handful every token, the amber ones only blink now and then. 3) key 1: 24 tokens/s from a 176B-parameter file.
+Shot list: 1) key 2: the amber cells of the table next to the teal weights. 2) Space: the teal cells light by the handful every token, the amber ones only blink now and then. 3) key 1: 24 tokens/s from a 177B-parameter file.
+
+### Episode 9
+Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=strix&model=q27&bits=4&prompt=q&crew=1&shot=3&record=1
+  then: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=strix&model=q27&bits=4&prompt=doc&crew=1&shot=3&record=1
+  (the Spark, same two prompts: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q27&bits=4&prompt=doc&crew=1&shot=3&record=1 )
+Guess card options: Same memory speed as the Spark, half the GPU math. Reading a 30-page document, it... A) ties / B) wins / C) takes twice as long
+Mission Report: M01 LIFTOFF   QWEN3.8 27B, 4-BIT, DOCUMENT | FITS? YES / YES / YES / YES | TOKENS/S 12 (meas.) / 82 / 38 (est.) / 11 (rep.) | DONE IN 23 s (meas.) / 5.7 s / 33 s (est.) / 37 s (rep.) | Writing is memory, reading is math: same bus, but the Spark reads 2.3x faster | NEXT: this mini PC runs a model the 5090 can't load
+Source of each number: the lists above. Writing: the Strix Halo 11.3 tokens/s against the Spark's 12.48 (document; question 11.6 against 12.84), 90% of the Spark, like its bandwidth: 256 against 273 GB/s (`bw`), 94%. Reading the document: 331.5 against 753.1 tokens/s (`ppTps`), 2.3x, so reading takes 24 s against 11 s and all of the gap is there (writing 13 s against 12 s). "15 seconds" = 37.4 - 22.6 s. The question alone: 14 s against 12 s. Half the math = `tflops` 59.4 against 125 (both estimated; the Strix Halo's from AMD's 40 compute units at 2,900 MHz). The Strix Halo runs are local-llm-benchmarks.dev's (llama.cpp, ROCm, UD-Q4_K_XL), linked in the file; the document numbers read 2,048 tokens after 8,192, so they are a little slow for an 8,000-token document from scratch. The Spark's GPU clock was capped at about 1,990 MHz when it was measured, so an uncapped Spark reads even faster.
+Shot list: 1) first link, key 3: one small block of 40 flickers per token, 12 tokens/s (the Spark: 13). 2) key 2: count the lanes, 8, the same as the Spark. 3) second link, key 3: all 40 blocks blaze for 24 s (trim it) while the Spark's 48 bigger blocks are done in 11 s. 4) H: the race panel, the Spark done in 23 s, the Strix Halo still writing until 37 s (the 5090 row, an estimate, finishes first). 5) key 3 again to loop back.
+
+### Episode 10
+Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=strix&model=flash&bits=4&prompt=q&crew=1&shot=1&record=1
+  (the 5090, for the overflow: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=rtx5090&model=flash&bits=4&prompt=q&crew=1&shot=2&record=1 )
+Guess card options: Qwen3.8-Flash-Next, 177B parameters with its table. Which one can run it? A) the RTX 5090 / B) the mini PC / C) neither
+Mission Report: M01 LIFTOFF   QWEN3.8-FLASH-NEXT, 4-BIT | FITS? YES / NO / YES / YES | TOKENS/S 24 (meas.) / NO / 104 (est.) / 21 (rep.) | DONE IN 6.8 s (meas.) / NO / 1.7 s (est.) / 7.9 s (rep.) | 128 GB of slow memory beats 32 GB of fast memory: a model has to fit before speed counts | NEXT: I gave my idle GPU 32 jobs
+Source of each number: the lists above. 101 GB = weights and table plus prompt memory at 4-bit (estimated), 120 GB free on the Strix Halo (`memGB` 128 minus `reserveGB` 8: the usual Linux setting lets its GPU map 120 GiB; out of the box it is about half, `gpuMemLinuxDefaultGB` 62.8, and the model would not fit) against 30.5 GB on the 5090. 177B = `total` 125.7B plus `table` 51.2B of flash. 21 tokens/s: 20.6, a published llama.cpp run of the UD-IQ4_XS file (93.7 GB; the Spark runs the 111 GB UD-Q4_K_XL at 24.2), 85% of the Spark.
+Shot list: 1) key 1 on the Strix Halo: arcs from the SSD fill the packages, teal weights across the front row, then the amber table in the back row, 101 of 120 GB. 2) Space, key 3: the small GPU block blazes for half a second, then a few cells flash per token, 21 tokens/s. 3) the 5090 link, key 2: its 16 chips fill in a blink and spill magenta. 4) back to the first link, key 1, for the loop.

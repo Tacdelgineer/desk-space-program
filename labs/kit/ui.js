@@ -29,12 +29,13 @@
     marks.forEach(m => { const i = document.createElement('i'); i.className = m.cls || ''; i.style.left = m.at.toFixed(1) + '%'; i.title = m.title || ''; el.appendChild(i); });
   }
 
-  /* ---------- race panel: one row per machine; the one on the stand is marked "inside view" ---------- */
+  /* ---------- race panel: one row per machine; the one on the stand is marked "inside view". A row whose numbers
+     come from a real run is tagged measured (run here) or reported (published by someone else) ---------- */
   function buildRace(machines) {
     const rrows = document.getElementById('rrows');
     machines.forEach(m => {
       const d = document.createElement('div'); d.className = 'rrow'; d.dataset.id = m.id;
-      d.innerHTML = '<div class="top"><b></b><i class="meas" hidden>measured</i><span></span></div><div class="track"><i></i></div>';
+      d.innerHTML = '<div class="top"><b></b><i class="meas" hidden>measured</i></div><div class="track"><i></i><span></span></div>';
       d.querySelector('b').textContent = m.name; rrows.appendChild(d); m.row = d;
     });
   }
@@ -44,7 +45,7 @@
     let winner = null;
     sim.others.forEach(o => { if (o.p.fits && (!winner || o.p.totalS < winner.p.totalS)) winner = o; });
     sim.others.forEach(o => {
-      const d = o.m.row, span = d.querySelector('.top span'), bar = d.querySelector('.track i');
+      const d = o.m.row, span = d.querySelector('.track span'), bar = d.querySelector('.track i');
       const p = o.p, t = sim.t;
       let txt = '', cls = '', w = 0, read = false;
       if (!p.fits) { txt = 'Doesn\'t fit: needs ' + fmtGB(p.needGB) + ' GB'; cls = 'bad'; }
@@ -54,7 +55,9 @@
       else { txt = 'Done in ' + fmtS(p.totalS); w = 1; cls = winner && winner.m.id === o.m.id ? 'win' : ''; if (cls) txt = 'First, ' + fmtS(p.totalS); }
       if (span.textContent !== txt) span.textContent = txt;
       span.className = cls; bar.style.width = (w * 100).toFixed(1) + '%'; bar.classList.toggle('read', read);
-      d.querySelector('.top .meas').hidden = !(p.fits && p.measured);
+      const tag = d.querySelector('.top .meas'), src = p.fits && p.measured && p.source !== 'estimated' ? p.source : '';
+      tag.hidden = !src;
+      if (src && tag.textContent !== src) { tag.textContent = src; tag.classList.toggle('rep', src === 'reported'); }
     });
   }
 

@@ -1,0 +1,28 @@
+{
+  "about": "Published llama.cpp results for the AMD Ryzen AI Max+ 395 (Strix Halo) with 128 GB: someone else's machine and benchmark, never run here. calc() uses them the way it uses the Spark's measured runs (4-bit, one request, same prompt size) and tags them reported; anything missing (Gemma's reading speed, the file sizes, 8- and 16-bit, the codebase prompt, crews) stays estimated. Picked by these rules: llama.cpp without speculative decoding (no MTP, no draft model), the fastest published backend for each model, the quant closest to the Spark's. The quants differ a little from the Spark's (UD-Q4_K_XL instead of UD-Q4_K_M; Flash-Next UD-IQ4_XS, 93.7 GB, instead of UD-Q4_K_XL, because the Q4_K_XL run used another engine). local-llm-benchmarks.dev (Donato Capitella's Strix Halo Toolboxes project) calls llama-server over its API like the Spark's benchmark does, but with other prompt sizes: it reads 2,048 new tokens at a given depth, then writes 128. The question (300 tokens) takes its depth-0 point: a 2,048-token prompt, written at about 2,100 tokens of context. The document (8,000 tokens) takes its depth-8,192 point: 2,048 more tokens after 8,192, written at about 10,300. So these reading speeds are for longer prompts than the lab's: a little fast for the question, a little slow for the document. A second list, huppiflupp/strix-halo-llm-speeds (llama-bench), agrees: Qwen3.8 27B Q4_K_M writes 12.3 tokens/s and reads 317-389 tokens/s there.",
+  "machine": "strix",
+  "source": "reported",
+  "runs": [
+    {"model": "g4", "name": "Gemma 4 E4B", "bits": "4", "quant": "Q4_K_M", "prompt": 300, "tgTps": 56.8,
+      "engine": "Lemonade (llama.cpp), Vulkan", "point": "six short tasks, up to 400 tokens out, one run; no reading speed published (only 62-235 tokens/s on very short prompts)", "date": "2026-09-15",
+      "by": "huppiflupp/strix-halo-llm-speeds", "link": "https://github.com/huppiflupp/strix-halo-llm-speeds#all-measurements-per-model"},
+    {"model": "q36", "name": "Qwen3.6 35B-A3B", "bits": "4", "quant": "UD-Q4_K_XL", "prompt": 300, "ppTps": 1218.7, "tgTps": 60.7,
+      "engine": "llama.cpp llama-server, Vulkan (RADV)", "point": "depth 0: a 2,048-token prompt, then 128 tokens", "date": "2026-09-02",
+      "by": "local-llm-benchmarks.dev", "link": "https://local-llm-benchmarks.dev/speed.html#compare=run-d58dcca093daefad~1~total~27f2d2~1"},
+    {"model": "q36", "name": "Qwen3.6 35B-A3B", "bits": "4", "quant": "UD-Q4_K_XL", "prompt": 8000, "ppTps": 1055.6, "tgTps": 56.5,
+      "engine": "llama.cpp llama-server, Vulkan (RADV)", "point": "depth 8,192: 2,048 more tokens after 8,192, then 128 tokens", "date": "2026-09-02",
+      "by": "local-llm-benchmarks.dev", "link": "https://local-llm-benchmarks.dev/speed.html#compare=run-d58dcca093daefad~1~total~27f2d2~1"},
+    {"model": "q27", "name": "Qwen3.8 27B", "bits": "4", "quant": "UD-Q4_K_XL", "prompt": 300, "ppTps": 385.9, "tgTps": 11.6,
+      "engine": "llama.cpp llama-server, ROCm 10.0", "point": "depth 0: a 2,048-token prompt, then 128 tokens", "date": "2026-09-03",
+      "by": "local-llm-benchmarks.dev", "link": "https://local-llm-benchmarks.dev/speed.html#compare=run-9566a1b76b1374e2~1~total~27f2d2~1"},
+    {"model": "q27", "name": "Qwen3.8 27B", "bits": "4", "quant": "UD-Q4_K_XL", "prompt": 8000, "ppTps": 331.5, "tgTps": 11.3,
+      "engine": "llama.cpp llama-server, ROCm 10.0", "point": "depth 8,192: 2,048 more tokens after 8,192, then 128 tokens", "date": "2026-09-03",
+      "by": "local-llm-benchmarks.dev", "link": "https://local-llm-benchmarks.dev/speed.html#compare=run-9566a1b76b1374e2~1~total~27f2d2~1"},
+    {"model": "flash", "name": "Qwen3.8-Flash-Next", "bits": "4", "quant": "UD-IQ4_XS", "prompt": 300, "ppTps": 470.2, "tgTps": 20.6,
+      "engine": "llama.cpp llama-server, ROCm 10.0", "point": "depth 0: a 2,048-token prompt, then 128 tokens", "date": "2026-09-04",
+      "by": "local-llm-benchmarks.dev", "link": "https://local-llm-benchmarks.dev/speed.html#compare=run-08fd1c87a980fba4~1~total~27f2d2~1"},
+    {"model": "flash", "name": "Qwen3.8-Flash-Next", "bits": "4", "quant": "UD-IQ4_XS", "prompt": 8000, "ppTps": 380.4, "tgTps": 19.6,
+      "engine": "llama.cpp llama-server, ROCm 10.0", "point": "depth 8,192: 2,048 more tokens after 8,192, then 128 tokens", "date": "2026-09-04",
+      "by": "local-llm-benchmarks.dev", "link": "https://local-llm-benchmarks.dev/speed.html#compare=run-08fd1c87a980fba4~1~total~27f2d2~1"}
+  ]
+}
