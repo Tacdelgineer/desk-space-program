@@ -1,0 +1,13 @@
+{
+  "about": "The hub page (dist/index.html) is built from this list. status is 'live' or 'coming'; a live mission needs a folder labs/missions/<dir>/.",
+  "missions": [
+    {"n": "01", "dir": "01-liftoff", "title": "Liftoff", "question": "Does the model fit, and how fast does it write?", "status": "live"},
+    {"n": "02", "title": "Gemini docking", "question": "A small model drafts, a big one checks.", "status": "coming"},
+    {"n": "03", "title": "Skylab", "question": "16 agents share one machine.", "status": "coming"},
+    {"n": "04", "title": "Apollo 13", "question": "An hour at full power: heat and the power supply.", "status": "coming"},
+    {"n": "05", "title": "Hubble's blurry mirror", "question": "What compression does to the answers.", "status": "coming"},
+    {"n": "06", "title": "Voyager", "question": "How far memory goes on very long prompts.", "status": "coming"},
+    {"n": "07", "title": "Space Shuttle", "question": "Is local cheaper than the cloud?", "status": "coming"},
+    {"n": "08", "title": "ISS", "question": "Four GPUs bolted together.", "status": "coming"}
+  ]
+}

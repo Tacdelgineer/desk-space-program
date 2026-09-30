@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your GPU isn't slow. It's starving. | Inside a DGX Spark</title>
+<meta name="description" content="Open up a DGX Spark and watch an AI model run inside it. The model lives in the memory chips, and for every word it writes, the whole model crosses the memory bus while the GPU mostly waits.">
+<meta name="theme-color" content="#1b1712">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Narrow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../kit/themes/screenprint.css">
+</head>
+<body>
+<canvas id="scene" aria-label="A DGX Spark opened up: memory chips around the main chip, the cooler lifted off above it."></canvas>
+<div id="labels" aria-hidden="true"><svg id="leaders"></svg></div>
+<div class="loading" id="loading">Opening the case</div>
+
+<header class="title">
+  <h1><span class="l1">Your GPU isn't slow.</span><span class="l2">It's starving.</span></h1>
+  <p class="sticker">Inside a DGX Spark, the model lives in the memory chips. To write each token, the whole model crosses the memory bus to the GPU. The GPU does its math in a flash, then waits for the next delivery.</p>
+  <div class="meta">
+    <span class="stamp">Mission 01: Liftoff</span>
+    <button class="linkish" id="open-info" type="button">What's real?</button>
+    <button class="linkish" id="open-keys" type="button">Keys</button>
+    <button class="linkish" id="open-missions" type="button">All missions</button>
+  </div>
+</header>
+
+<div class="dock" id="dock">
+  <section class="panel answer" aria-labelledby="ans-h">
+    <div class="head"><h2 id="ans-h">Answer</h2><span class="status" id="status">Loading model</span></div>
+    <div class="term" id="term" aria-live="off"></div>
+    <div class="bignum"><b id="bignum">-</b><span id="bigunit">tokens per second</span></div>
+    <p class="speed" id="speedline"></p>
+    <div class="meters">
+      <div class="meter gpu"><span class="lbl">GPU math used</span><span class="bar"><i id="m-gpu"></i></span><b id="v-gpu">0%</b></div>
+      <div class="meter bus"><span class="lbl">Memory bus busy</span><span class="bar"><i id="m-bus"></i></span><b id="v-bus">0%</b></div>
+    </div>
+  </section>
+
+  <section class="panel controls" aria-label="Launch controls">
+    <div class="bar-row">
+      <fieldset><legend>Model</legend><div class="pills" id="pick-model"></div></fieldset>
+      <fieldset><legend>Compression</legend><div class="pills" id="pick-prec"></div></fieldset>
+      <fieldset><legend>Your prompt</legend><div class="pills" id="pick-prompt"></div></fieldset>
+      <fieldset><legend>Playback</legend><div class="pills" id="pick-speed"></div></fieldset>
+      <div class="actions">
+        <button class="btn btn-launch" id="launch" type="button">Launch</button>
+        <button class="btn" id="reset" type="button">Reset</button>
+        <button class="btn only-touch" id="hide-btn" type="button">Hide interface</button>
+      </div>
+    </div>
+    <p class="hint" id="payload-line"></p>
+  </section>
+
+  <section class="panel race" aria-labelledby="race-h">
+    <div class="head"><h2 id="race-h">Same launch, other machines</h2><span>Estimated</span></div>
+    <div id="rrows"></div>
+    <p class="note" id="race-note" aria-live="polite">Who finishes first? Guess, then launch.</p>
+  </section>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+<button class="restore" id="restore" type="button">Show interface</button>
+
+<dialog id="info" aria-labelledby="info-h">
+  <h2 id="info-h">What's real on this page</h2>
+  <ul>
+    <li>The specs are published figures: 128 GB of shared memory, 273 GB/s of memory bandwidth, a 20-core Arm CPU next to a Blackwell GPU, and a 4 TB SSD.</li>
+    <li>The board is an illustration, not a teardown. Chip count, placement and the cooler are simplified. Each glowing cell on a memory chip is 1 GB.</li>
+    <li>Speeds are estimates from simple rules, not measurements. Writing speed is bandwidth divided by the bytes read per token. Reading speed is compute divided by model size, and the compute figures are rough placeholders.</li>
+    <li>The system keeps about 8 GB for itself, shown as the dim cells.</li>
+    <li>GPU math used is the share of the GPU's math capacity in use. nvidia-smi shows a much higher busy figure while writing, because it counts any moment a program is running on the GPU, even one that mostly waits for memory.</li>
+    <li>Not modeled yet: many requests at once, heat, and the extra work of attention on very long prompts.</li>
+  </ul>
+  <p>In the real series the Spark's numbers are measured on the machine. Other machines stay marked as estimated until they're measured.</p>
+  <form method="dialog"><button class="btn" type="submit">Close</button></form>
+</dialog>
+
+<dialog id="keys-dlg" aria-labelledby="keys-h">
+  <h2 id="keys-h">Camera and keys</h2>
+  <dl class="keys">
+    <dt><kbd>Space</kbd></dt><dd>Launch</dd>
+    <dt><kbd>1</kbd></dt><dd>Whole machine</dd>
+    <dt><kbd>2</kbd></dt><dd>Close up on the memory</dd>
+    <dt><kbd>3</kbd></dt><dd>Close up on the GPU</dd>
+    <dt><kbd>4</kbd></dt><dd>Close up on the SSD</dd>
+    <dt><kbd>C</kbd></dt><dd>Slow cinematic orbit</dd>
+    <dt><kbd>H</kbd></dt><dd>Hide the interface for recording</dd>
+    <dt><kbd>L</kbd></dt><dd>Hide the part labels</dd>
+    <dt><kbd>F</kbd></dt><dd>Fullscreen</dd>
+    <dt><kbd>R</kbd></dt><dd>Reset</dd>
+    <dt>Drag, scroll</dt><dd>Orbit and zoom</dd>
+  </dl>
+  <form method="dialog"><button class="btn" type="submit">Close</button></form>
+</dialog>
+
+<dialog id="missions-dlg" aria-labelledby="missions-h">
+  <h2 id="missions-h">Desk Space Program</h2>
+  <ol class="mlist">
+    <li class="live"><span class="n">01</span><span><span class="t">Liftoff (this page)</span><span class="q">Does the model fit, and how fast does it write?</span></span></li>
+    <li><span class="n">02</span><span><span class="t">Gemini docking</span><span class="q">A small model drafts, a big one checks.</span></span></li>
+    <li><span class="n">03</span><span><span class="t">Skylab</span><span class="q">16 agents share one machine.</span></span></li>
+    <li><span class="n">04</span><span><span class="t">Apollo 13</span><span class="q">An hour at full power: heat and the power supply.</span></span></li>
+    <li><span class="n">05</span><span><span class="t">Hubble's blurry mirror</span><span class="q">What compression does to the answers.</span></span></li>
+    <li><span class="n">06</span><span><span class="t">Voyager</span><span class="q">How far memory goes on very long prompts.</span></span></li>
+    <li><span class="n">07</span><span><span class="t">Space Shuttle</span><span class="q">Is local cheaper than the cloud?</span></span></li>
+    <li><span class="n">08</span><span><span class="t">ISS</span><span class="q">Four GPUs bolted together.</span></span></li>
+  </ol>
+  <form method="dialog"><button class="btn" type="submit">Close</button></form>
+</dialog>
+
+<div class="fallback" id="fallback" hidden><p>The 3D engine didn't load. Check your connection and reload the page.</p></div>
+
+<script type="application/json" id="data-machines" src="../../data/machines.json"></script>
+<script type="application/json" id="data-models" src="../../data/models.json"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/environments/RoomEnvironment.js"></script>
+<script src="../../kit/model.js"></script>
+<script src="../../kit/engine.js"></script>
+<script src="../../kit/parts.js"></script>
+<script src="../../kit/ui.js"></script>
+<script src="../../machines/spark.js"></script>
+<script src="mission.js"></script>
+</body>
+</html>

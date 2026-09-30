@@ -1,0 +1,15 @@
+{
+  "about": "Every number is {value, source}. total and active are billions of parameters, kvMB is prompt memory per token in MB, bpp is bytes per parameter. HANDOFF 'Speed model' says how they are used.",
+  "models": [
+    {"id": "l8", "short": "Llama 8B", "name": "Llama 3.1 8B", "total": {"value": 8.0, "source": "estimated"}, "active": {"value": 8.0, "source": "estimated"}, "kvMB": {"value": 0.125, "source": "estimated"}, "moe": false},
+    {"id": "q32", "short": "Qwen 32B", "name": "Qwen3 32B", "total": {"value": 32.8, "source": "estimated"}, "active": {"value": 32.8, "source": "estimated"}, "kvMB": {"value": 0.25, "source": "estimated"}, "moe": false},
+    {"id": "q30", "short": "Qwen 30B MoE", "name": "Qwen3 30B MoE", "total": {"value": 30.5, "source": "estimated"}, "active": {"value": 3.3, "source": "estimated"}, "kvMB": {"value": 0.094, "source": "estimated"}, "moe": true},
+    {"id": "l70", "short": "Llama 70B", "name": "Llama 3.3 70B", "total": {"value": 70.6, "source": "estimated"}, "active": {"value": 70.6, "source": "estimated"}, "kvMB": {"value": 0.3125, "source": "estimated"}, "moe": false},
+    {"id": "oss", "short": "gpt-oss 120B", "name": "gpt-oss 120B MoE", "total": {"value": 117, "source": "estimated"}, "active": {"value": 5.1, "source": "estimated"}, "kvMB": {"value": 0.07, "source": "estimated"}, "moe": true}
+  ],
+  "precisions": [
+    {"id": "16", "short": "16-bit", "name": "16-bit, full size", "bpp": {"value": 2.0, "source": "estimated"}},
+    {"id": "8", "short": "8-bit", "name": "8-bit, half size", "bpp": {"value": 1.06, "source": "estimated"}},
+    {"id": "4", "short": "4-bit", "name": "4-bit, quarter size", "bpp": {"value": 0.57, "source": "estimated"}}
+  ]
+}

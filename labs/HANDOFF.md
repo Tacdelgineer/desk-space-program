@@ -2,7 +2,9 @@
 
 Mission 01, "Liftoff": an opened-up DGX Spark on a display stand. The model lives in the
 memory chips; for every token the whole model crosses the memory bus while the GPU mostly
-waits. Built in claude.ai chat as one HTML file (`desk-space-program.html`, about 80 KB).
+waits. Built in claude.ai chat as one HTML file (about 80 KB). Session A split it into the kit
+(see `labs/kit/README.md` for the files as they are now); the original file is kept in
+`labs/_baseline/` with the screenshots the split was checked against.
 Everything below was learned the hard way. Read it before touching the code.
 
 ## What's in the file today
@@ -30,8 +32,8 @@ Everything below was learned the hard way. Read it before touching the code.
   release that ships browser-global add-ons. claude.ai published pages only allow scripts
   from a few CDN hosts and no ES-module imports from other hosts. For gh-pages you may move
   to modern three with import maps later, but it isn't needed.
-- No build step for the page itself. `build_single.mjs` from the tacdel-video skill can inline
-  local scripts and bake a data JSON in as `window.__RUN__`.
+- `node labs/build.mjs` inlines the local scripts, CSS and data files into one page per mission
+  in `dist/` (repo root, gitignored). three.js stays on the CDN.
 
 ## Gotchas (each one cost a render cycle)
 
@@ -74,40 +76,40 @@ answer     = 150 tokens; prompts 300 / 8,000 / 32,000 tokens
 ```
 
 Machines: Spark 128 GB, reserve 8, 273 GB/s, 125 TFLOPS placeholder. RTX 5090 32 GB, reserve
-1.5, 1,792 GB/s, 210 placeholder. Mac Studio M3 Ultra 96 GB in the page today (change to the
-256 GB config the creator owned), 819 GB/s, 28 placeholder.
+1.5, 1,792 GB/s, 210 placeholder. Mac Studio M3 Ultra 256 GB config (the one the creator owns;
+it was 96 GB before Session A), 819 GB/s, 28 placeholder. The numbers now live in
+`labs/data/machines.json` and `models.json`, each tagged `"source": "estimated"`.
 
 `llama-bench` (llama.cpp) reports exactly the two speeds the lab uses: `pp` = reading the
 prompt, `tg` = writing. Measured numbers replace the estimates and get tagged `measured`.
 
 ## Known issues to fix
 
-- **"GPU busy" is misleading.** It means the share of the GPU's math capacity in use.
-  `nvidia-smi` would show 90%+ during writing because memory-bound kernels still count as busy,
-  and viewers will call it wrong. Rename to "GPU math used" and explain it in What's real.
-- Pills don't re-sync when the selection changes from code.
+- ~~"GPU busy" is misleading~~ Fixed in Session A: now "GPU math used", explained in What's real.
+- ~~Pills don't re-sync when the selection changes from code~~ Fixed in Session A (`sel` is a Proxy).
 - Labels still crowd each other when zoomed in; side rails would fix it.
 - The claude.ai published link is a snapshot. The home is now GitHub Pages (see below).
 
-## The kit (target layout)
+## The kit (target layout; the built parts are described in `labs/kit/README.md`)
 
 ```
 labs/
   kit/engine.js        renderer, post chain, lights, floor, camera shots, keys, labels
   kit/parts.js         rounded box, chip, memory package, inductor, cap, heat pipe, fan, SSD, ports
-  kit/model.js         speed model above, plus the crew (batching) model
+  kit/model.js         speed model above, plus the crew (batching) model (not built yet)
   kit/ui.js            panels, pills, race, dialogs
   kit/themes/screenprint.css
-  machines/spark.js    layout: where each part sits
-  machines/rtx5090.js
-  machines/m3ultra.js
+  machines/spark.js    layout: where each part sits, and animate()
+  machines/rtx5090.js  (Session B)
+  machines/m3ultra.js  (Session B)
   data/machines.json   specs with a measured/estimated tag per number
   data/models.json
-  missions/01-liftoff/index.html  pulls the pieces together
-  dist/                build_single output, one file per mission
+  missions/01-liftoff/index.html + mission.js   pulls the pieces together
+dist/                  (repo root) build output, one file per mission plus the hub page
 ```
 
-Rule: the split must render the same as today before any new feature goes in.
+Rule: the split must render the same as today before any new feature goes in. Check it with
+`labs/tools/shoot.mjs` against `labs/_baseline/` (Session A did; only ~30 speckle pixels differed).
 
 ## Next features (agreed)
 

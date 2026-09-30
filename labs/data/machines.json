@@ -1,0 +1,8 @@
+{
+  "about": "Every number is {value, source}. source is 'estimated' until a number is measured or has a link. Units: memGB and reserveGB in GB, bw in GB/s, tflops in TFLOPS (placeholders).",
+  "machines": [
+    {"id": "spark", "name": "DGX Spark", "memGB": {"value": 128, "source": "estimated"}, "reserveGB": {"value": 8, "source": "estimated"}, "bw": {"value": 273, "source": "estimated"}, "tflops": {"value": 125, "source": "estimated"}},
+    {"id": "rtx5090", "name": "RTX 5090", "memGB": {"value": 32, "source": "estimated"}, "reserveGB": {"value": 1.5, "source": "estimated"}, "bw": {"value": 1792, "source": "estimated"}, "tflops": {"value": 210, "source": "estimated"}},
+    {"id": "mac", "name": "Mac Studio M3 Ultra", "memGB": {"value": 256, "source": "estimated"}, "reserveGB": {"value": 8, "source": "estimated"}, "bw": {"value": 819, "source": "estimated"}, "tflops": {"value": 28, "source": "estimated"}}
+  ]
+}
