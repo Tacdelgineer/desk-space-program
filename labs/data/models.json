@@ -1,5 +1,5 @@
 {
-  "about": "Every number is {value, source}. total and active are billions of parameters, kvMB is prompt memory per token in MB, bpp is bytes per parameter. HANDOFF 'Speed model' says how they are used.",
+  "about": "Every number is {value, source}. total and active are billions of parameters, kvMB is prompt memory per token in MB, bpp is bytes per parameter. HANDOFF 'Speed model' says how they are used. sizeHandle: the model-size handle's range, and how a sized model's prompt memory per token is scaled from the 8B preset (kvMB = kvMBat8B x (size / 8) ^ kvExponent). prompts: the three prompt sizes the lab offers, in tokens (a choice, not a measurement).",
   "models": [
     {"id": "l8", "short": "Llama 8B", "name": "Llama 3.1 8B", "total": {"value": 8.0, "source": "estimated"}, "active": {"value": 8.0, "source": "estimated"}, "kvMB": {"value": 0.125, "source": "estimated"}, "moe": false},
     {"id": "q32", "short": "Qwen 32B", "name": "Qwen3 32B", "total": {"value": 32.8, "source": "estimated"}, "active": {"value": 32.8, "source": "estimated"}, "kvMB": {"value": 0.25, "source": "estimated"}, "moe": false},
@@ -11,5 +11,11 @@
     {"id": "16", "short": "16-bit", "name": "16-bit, full size", "bpp": {"value": 2.0, "source": "estimated"}},
     {"id": "8", "short": "8-bit", "name": "8-bit, half size", "bpp": {"value": 1.06, "source": "estimated"}},
     {"id": "4", "short": "4-bit", "name": "4-bit, quarter size", "bpp": {"value": 0.57, "source": "estimated"}}
-  ]
+  ],
+  "prompts": [
+    {"id": "q", "tokens": {"value": 300, "source": "chosen"}},
+    {"id": "doc", "tokens": {"value": 8000, "source": "chosen"}},
+    {"id": "code", "tokens": {"value": 32000, "source": "chosen"}}
+  ],
+  "sizeHandle": {"minB": {"value": 1, "source": "estimated"}, "maxB": {"value": 200, "source": "estimated"}, "kvMBat8B": {"value": 0.125, "source": "estimated"}, "kvExponent": {"value": 0.43, "source": "estimated"}}
 }

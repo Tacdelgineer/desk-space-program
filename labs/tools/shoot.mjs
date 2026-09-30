@@ -1,14 +1,20 @@
 // Deterministic screenshots of a lab page, and a pixel compare of two folders of them.
 //
 //   npm i --no-save playwright            (once, at the repo root; node_modules is gitignored)
-//   node labs/tools/shoot.mjs <page.html> <outDir> [shots=1,2,3]
+//   node labs/tools/shoot.mjs <page.html>[?preset] <outDir> [shots=1,2,3]
 //   node labs/tools/shoot.mjs --compare <dirA> <dirB> [diffDir]
 //
-// Every shot is 1920x1080, UI hidden (H), Llama 70B at 4-bit, a few seconds into the writing phase.
-// Math.random is seeded and time is virtual (requestAnimationFrame and performance.now are stepped
-// by hand), so the same page renders the same pixels on every run, grain included.
-// Renders in software (SwiftShader): on the DGX Spark, Chromium's Vulkan/ANGLE path reports
-// "createPipeline: Internal Vulkan error (-13)" and draws this page mostly black. SHOOT_GPU=1 tries it anyway.
+// Every shot is 1920x1080, UI hidden (H), a few seconds into the writing phase. The page's defaults are
+// Llama 70B at 4-bit on the DGX Spark; a preset query (?machine=mac&crew=16, see the mission's URL
+// parameters) changes that. Math.random is seeded and time is virtual (requestAnimationFrame and
+// performance.now are stepped by hand), so the same page renders the same pixels on every run, grain included.
+//
+// Options (environment):
+//   SHOOT_GPU=1           render on the GPU (full Chromium, ANGLE on OpenGL ES): about 10x faster, but pixels
+//                         differ slightly from the software baseline, so compare software against software.
+//                         (ANGLE on Vulkan fails on the GB10's driver in the shadow pass; see HANDOFF.)
+//   SHOOT_SIZE=1080x1920  another final size, e.g. a 9:16 Short
+//   SHOOT_UI=1            keep the interface (panels, labels) in the picture
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -16,12 +22,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const W = 1920, H = 1080, STEP_MS = 1000 / 30, WRITING_FRAMES = 90;
+const [W, H] = (process.env.SHOOT_SIZE || '1920x1080').split('x').map(Number), STEP_MS = 1000 / 30, WRITING_FRAMES = 90;
+const KEEP_UI = !!process.env.SHOOT_UI;
 const CACHE = path.join(os.tmpdir(), 'dsp-shoot-cache');
 
-const ARGS = process.env.SHOOT_GPU
-  ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist']
-  : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
+const LAUNCH = process.env.SHOOT_GPU
+  ? { channel: 'chromium', args: ['--use-angle=gles-egl', '--ignore-gpu-blocklist'] }
+  : { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] };
 
 // Runs before the page's own scripts.
 function determinism(seed) {
@@ -56,9 +63,10 @@ async function cachedRoute(ctx) {
 }
 
 async function shoot(pagePath, outDir, shots) {
-  const url = /^https?:|^file:/.test(pagePath) ? pagePath : pathToFileURL(path.resolve(pagePath)).href;
+  const [file, query] = pagePath.split('?');
+  const url = /^https?:|^file:/.test(pagePath) ? pagePath : pathToFileURL(path.resolve(file)).href + (query ? '?' + query : '');
   fs.mkdirSync(outDir, { recursive: true });
-  const browser = await chromium.launch({ args: ARGS });
+  const browser = await chromium.launch(LAUNCH);
   for (const k of shots) {
     // Software rendering is slow, so the simulation is fast-forwarded in a small window and only the last frames are drawn at full size.
     const ctx = await browser.newContext({ viewport: { width: 480, height: 270 }, deviceScaleFactor: 1, colorScheme: 'light', reducedMotion: 'no-preference' });
@@ -71,7 +79,8 @@ async function shoot(pagePath, outDir, shots) {
     await page.evaluate(() => document.fonts.ready);
     await page.evaluate(dt => __step(3, dt), STEP_MS);
     await page.waitForTimeout(1000);                       // the loading curtain fades in real time
-    await page.keyboard.press('h');                        // hide the interface
+    const hidden = await page.evaluate(() => document.body.classList.contains('hide-ui'));
+    if (hidden === KEEP_UI) await page.keyboard.press('h');  // hide the interface (record=1 already has)
     await page.evaluate(([dt, n]) => {
       __lab.launch();
       for (let i = 0; __lab.sim.phase !== 'writing' && i < 3000; i++) __step(1, dt);
@@ -92,7 +101,7 @@ async function shoot(pagePath, outDir, shots) {
 
 // Compare shot-*.png in two folders. Reports how many pixels differ by more than 2/255 on any channel.
 async function compare(a, b, diffDir) {
-  const browser = await chromium.launch({ args: ARGS });
+  const browser = await chromium.launch(LAUNCH);
   const page = await browser.newPage();
   const files = fs.readdirSync(a).filter(f => /^shot-.*\.png$/.test(f)).sort();
   let bad = 0;

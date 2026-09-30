@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Your GPU isn't slow. It's starving. | Inside a DGX Spark</title>
-<meta name="description" content="Open up a DGX Spark and watch an AI model run inside it. The model lives in the memory chips, and for every word it writes, the whole model crosses the memory bus while the GPU mostly waits.">
+<title>Your GPU isn't slow. It's starving. | Inside a DGX Spark, an RTX 5090 and a Mac Studio</title>
+<meta name="description" content="Open up a DGX Spark, an RTX 5090 or a Mac Studio and watch an AI model run inside it. The model lives in the memory chips, and for every word it writes, the whole model crosses the memory bus while the GPU mostly waits.">
 <meta name="theme-color" content="#1b1712">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="../../kit/themes/screenprint.css">
 </head>
 <body>
-<canvas id="scene" aria-label="A DGX Spark opened up: memory chips around the main chip, the cooler lifted off above it."></canvas>
+<canvas id="scene" aria-label="A computer opened up on a display stand: memory chips around the main chip, the cooler lifted off above it."></canvas>
 <div id="labels" aria-hidden="true"><svg id="leaders"></svg></div>
 <div class="loading" id="loading">Opening the case</div>
 
@@ -40,7 +40,14 @@
 
   <section class="panel controls" aria-label="Launch controls">
     <div class="bar-row">
-      <fieldset><legend>Model</legend><div class="pills" id="pick-model"></div></fieldset>
+      <fieldset><legend>Machine</legend><div class="pills notches" id="pick-machine"></div></fieldset>
+      <fieldset class="dial size"><legend>Model size <b id="size-read"></b></legend>
+        <div class="track-wrap"><input type="range" id="size" min="0" max="1000" step="1" aria-label="Model size, 1 to 200 billion parameters"><div class="ticks" id="size-ticks"></div></div>
+        <div class="pills small" id="pick-model"></div></fieldset>
+      <fieldset class="dial crew"><legend>Crew: requests at once <b id="crew-read"></b></legend>
+        <div class="track-wrap"><input type="range" id="crew" min="0" max="1000" step="1" aria-label="Crew, 1 to 64 requests at once"><div class="ticks" id="crew-ticks"></div></div>
+        <span class="dial-note" id="crew-note"></span></fieldset>
+      <div class="row-break"></div>
       <fieldset><legend>Compression</legend><div class="pills" id="pick-prec"></div></fieldset>
       <fieldset><legend>Your prompt</legend><div class="pills" id="pick-prompt"></div></fieldset>
       <fieldset><legend>Playback</legend><div class="pills" id="pick-speed"></div></fieldset>
@@ -65,14 +72,16 @@
 <dialog id="info" aria-labelledby="info-h">
   <h2 id="info-h">What's real on this page</h2>
   <ul>
-    <li>The specs are published figures: 128 GB of shared memory, 273 GB/s of memory bandwidth, a 20-core Arm CPU next to a Blackwell GPU, and a 4 TB SSD.</li>
-    <li>The board is an illustration, not a teardown. Chip count, placement and the cooler are simplified. Each glowing cell on a memory chip is 1 GB.</li>
+    <li>The specs are published figures. DGX Spark: 128 GB of shared memory on a 256-bit bus, 273 GB/s, a 20-core Arm CPU next to a Blackwell GPU. RTX 5090: 32 GB of GDDR7 in 16 chips on a 512-bit bus, 1,792 GB/s. Mac Studio M3 Ultra: 256 GB on the chip package, a 1,024-bit bus, 819 GB/s.</li>
+    <li>The boards are illustrations, not teardowns. Placement, part counts and the coolers are simplified. Each glowing cell on a memory chip is 1 GB, and each glowing lane of the bus is 32 bits wide, so you can count them: 8, 16 and 32.</li>
+    <li>The crew dial runs several requests at once. Each step reads the weights once for everyone plus each request's prompt memory, and does the math once per request, so the total speed climbs until the GPU's math catches up with memory or the prompt memory no longer fits.</li>
+    <li>Model sizes between the presets are dense models whose prompt memory is scaled from the presets.</li>
     <li>Speeds are estimates from simple rules, not measurements. Writing speed is bandwidth divided by the bytes read per token. Reading speed is compute divided by model size, and the compute figures are rough placeholders.</li>
     <li>The system keeps about 8 GB for itself, shown as the dim cells.</li>
     <li>GPU math used is the share of the GPU's math capacity in use. nvidia-smi shows a much higher busy figure while writing, because it counts any moment a program is running on the GPU, even one that mostly waits for memory.</li>
-    <li>Not modeled yet: many requests at once, heat, and the extra work of attention on very long prompts.</li>
+    <li>Not modeled yet: heat, and the extra work of attention on very long prompts.</li>
   </ul>
-  <p>In the real series the Spark's numbers are measured on the machine. Other machines stay marked as estimated until they're measured.</p>
+  <p>In the real series the Spark's numbers are measured on the machine. Other machines stay marked as estimated until they're measured. Every number here is an estimate for now.</p>
   <form method="dialog"><button class="btn" type="submit">Close</button></form>
 </dialog>
 
@@ -83,7 +92,8 @@
     <dt><kbd>1</kbd></dt><dd>Whole machine</dd>
     <dt><kbd>2</kbd></dt><dd>Close up on the memory</dd>
     <dt><kbd>3</kbd></dt><dd>Close up on the GPU</dd>
-    <dt><kbd>4</kbd></dt><dd>Close up on the SSD</dd>
+    <dt><kbd>4</kbd></dt><dd>Close up on where models load from (the SSD, or the 5090's PCIe slot)</dd>
+    <dt><kbd>M</kbd></dt><dd>Next machine (works with the interface hidden)</dd>
     <dt><kbd>C</kbd></dt><dd>Slow cinematic orbit</dd>
     <dt><kbd>H</kbd></dt><dd>Hide the interface for recording</dd>
     <dt><kbd>F</kbd></dt><dd>Fullscreen</dd>
@@ -108,8 +118,11 @@
 <script src="../../kit/model.js"></script>
 <script src="../../kit/engine.js"></script>
 <script src="../../kit/parts.js"></script>
+<script src="../../kit/board.js"></script>
 <script src="../../kit/ui.js"></script>
 <script src="../../machines/spark.js"></script>
+<script src="../../machines/rtx5090.js"></script>
+<script src="../../machines/m3ultra.js"></script>
 <script src="mission.js"></script>
 </body>
 </html>

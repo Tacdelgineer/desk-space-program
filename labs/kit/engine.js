@@ -11,8 +11,8 @@
   if (T.ColorManagement) T.ColorManagement.legacyMode = false;
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Late-bound buttons the keys call. The mission sets launch, ui.js sets toggleUI.
-  const actions = { launch() {}, toggleUI() {} };
+  // Late-bound buttons the keys call. The mission sets launch and nextMachine, ui.js sets toggleUI.
+  const actions = { launch() {}, nextMachine() {}, toggleUI() {} };
 
   /* =========================================================
      RENDERER, SCENE, CAMERA, POST
@@ -25,6 +25,12 @@
   renderer.toneMappingExposure = 0.86;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = T.PCFSoftShadowMap;
+  // NVIDIA's Linux Vulkan driver fails to build the shadow-pass pipelines that ANGLE asks for, and the page
+  // draws black. Chrome only takes that path when forced onto Vulkan (its Linux default is OpenGL, which works),
+  // so drop the shadows in that one case rather than show nothing.
+  const gl = renderer.getContext(), dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  const gpuName = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+  if (/NVIDIA/.test(gpuName) && /Vulkan/.test(gpuName)) renderer.shadowMap.enabled = false;
 
   const scene = new T.Scene();
   const pmrem = new T.PMREMGenerator(renderer);
@@ -47,9 +53,13 @@
     return t;
   }
   const std = (color, rough, metal, extra) => new T.MeshStandardMaterial(Object.assign({ color, roughness: rough, metalness: metal }, extra || {}));
+  // Everything a machine builds goes into its own group (setParent), so the whole machine can sink and rise.
+  let parent = scene;
+  const setParent = g => { parent = g || scene; };
+  const add = o => { parent.add(o); return o; };
   function mesh(geo, mat, x, y, z, opts) {
     const m = new T.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0);
-    m.castShadow = !(opts && opts.noCast); m.receiveShadow = true; scene.add(m); return m;
+    m.castShadow = !(opts && opts.noCast); m.receiveShadow = true; add(m); return m;
   }
 
   scene.background = new T.Color(0x050508);
@@ -135,7 +145,7 @@
     const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
     const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pos, 3)); g.setAttribute('color', new T.BufferAttribute(col, 3));
     const pts = new T.Points(g, new T.PointsMaterial({ size, vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false }));
-    pts.frustumCulled = false; scene.add(pts);
+    pts.frustumCulled = false; add(pts);
     const items = []; for (let i = 0; i < n; i++) items.push({ life: 0 });
     const base = new T.Color(color); let cur = 0;
     return {
@@ -158,48 +168,71 @@
   const qb = (a, b, c, t) => new T.Vector3().copy(a).multiplyScalar((1 - t) * (1 - t)).addScaledVector(b, 2 * (1 - t) * t).addScaledVector(c, t * t);
 
   /* =========================================================
-     LABELS WITH LEADER LINES
-     list: [{ id, at: Vector3, dx, dy, title }]. Each label tries several offsets and skips
-     any spot that hits a panel or another label, otherwise hides (HANDOFF gotcha 7).
+     LABELS ON SIDE RAILS
+     list: [{ id, at: Vector3, title }]. The anchors are split at the median screen x: the left half goes
+     to a rail down the left edge of the free area, the right half to one down the right edge. Each rail
+     is sorted by anchor height, cards are packed without overlap, and any two leader lines that still
+     cross swap cards (which always shortens them), so leaders never cross.
      ========================================================= */
   const labelsEl = document.getElementById('labels'), svg = document.getElementById('leaders');
-  let LABELS = [];
+  let LABELS = [], labelsOn = true;
   function initLabels(list) {
+    LABELS.forEach(L => { L.el.remove(); L.line.remove(); L.dot.remove(); });
     LABELS = list;
     LABELS.forEach(L => {
       L.el = document.createElement('div'); L.el.className = 'lab';
       L.el.innerHTML = '<b></b><span></span>'; L.el.querySelector('b').textContent = L.title; L.sub = L.el.querySelector('span');
       labelsEl.appendChild(L.el);
-      L.line = document.createElementNS('http://www.w3.org/2000/svg', 'line'); L.line.setAttribute('stroke', '#efe5cf'); L.line.setAttribute('stroke-width', '1.5');
+      L.line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); L.line.setAttribute('fill', 'none'); L.line.setAttribute('stroke', '#efe5cf'); L.line.setAttribute('stroke-width', '1.5');
       L.dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); L.dot.setAttribute('r', '4'); L.dot.setAttribute('fill', '#df3a2c'); L.dot.setAttribute('stroke', '#1b1712'); L.dot.setAttribute('stroke-width', '1.5');
       svg.append(L.line, L.dot);
     });
   }
-  function setLab(id, text, cls) { const L = LABELS.find(l => l.id === id); if (L.sub.textContent !== text) L.sub.textContent = text; const c = cls || ''; if (L.sub.className !== c) L.sub.className = c; }
+  function setLab(id, text, cls) { const L = LABELS.find(l => l.id === id); if (!L) return; if (L.sub.textContent !== text) L.sub.textContent = text; const c = cls || ''; if (L.sub.className !== c) L.sub.className = c; }
+  function showLabels(on) { labelsOn = on; }
   const pv = new T.Vector3();
+  const hideLab = L => { L.el.style.display = 'none'; L.line.style.display = L.dot.style.display = 'none'; };
+  // Do segments p1-p2 and p3-p4 cross?
+  function crosses(a, b) {
+    const d = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    const d1 = d(b.p, b.q, a.p), d2 = d(b.p, b.q, a.q), d3 = d(a.p, a.q, b.p), d4 = d(a.p, a.q, b.q);
+    return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+  }
   function updateLabels() {
-    if (document.body.classList.contains('hide-ui') || window.innerWidth <= 900) return;
-    const placedBoxes = [];
+    if (!labelsOn || document.body.classList.contains('hide-ui') || window.innerWidth <= 900) { LABELS.forEach(hideLab); return; }
+    const shown = [];
     LABELS.forEach(L => {
       pv.copy(L.at).project(camera);
-      const vis = pv.z < 1 && Math.abs(pv.x) < 1.05 && Math.abs(pv.y) < 1.05;
-      L.el.style.display = vis ? '' : 'none'; L.line.style.display = L.dot.style.display = vis ? '' : 'none';
-      if (!vis) return;
-      const x = (pv.x * 0.5 + 0.5) * viewW, y = (-pv.y * 0.5 + 0.5) * viewH;
-      const w = L.el.offsetWidth, h = L.el.offsetHeight;
-      let bx = 0, by = 0, ok = false, ddx = L.dx, ddy = L.dy;
-      const cands = [[L.dx, L.dy], [-L.dx, L.dy], [L.dx, -L.dy], [-L.dx, -L.dy], [0, L.dy], [0, -L.dy], [L.dx * 1.6, L.dy * 0.5], [-L.dx * 1.6, L.dy * 0.5], [0, L.dy * 0.6], [0, -L.dy * 0.6]];
-      for (const [tdx, tdy] of cands) {
-        const cx = tdx > 0 ? x + tdx : tdx < 0 ? x + tdx - w : x - w / 2, cy = tdy < 0 ? y + tdy - h : y + tdy;
-        const hit = panelRects.some(r => cx < r.right + 6 && cx + w > r.left - 6 && cy < r.bottom + 6 && cy + h > r.top - 6) || placedBoxes.some(r => cx < r[2] + 6 && cx + w > r[0] - 6 && cy < r[3] + 6 && cy + h > r[1] - 6) || cx < 4 || cy < 4 || cx + w > viewW - 4 || cy + h > viewH - 4;
-        if (!hit) { bx = cx; by = cy; ddx = tdx; ddy = tdy; ok = true; break; }
+      if (!(pv.z < 1 && Math.abs(pv.x) < 1.02 && Math.abs(pv.y) < 1.02)) { hideLab(L); return; }
+      L.x = (pv.x * 0.5 + 0.5) * viewW; L.y = (-pv.y * 0.5 + 0.5) * viewH;
+      L.el.style.display = ''; L.line.style.display = L.dot.style.display = '';
+      L.w = L.el.offsetWidth; L.h = L.el.offsetHeight; shown.push(L);
+    });
+    shown.sort((a, b) => a.x - b.x);
+    const half = Math.ceil(shown.length / 2), gap = 10;
+    [[shown.slice(0, half), rails.left], [shown.slice(half), rails.right]].forEach(([list, rail]) => {
+      list.sort((a, b) => a.y - b.y);
+      // slots: centred on the anchors' heights, pushed apart, then pulled back inside the rail
+      const ys = list.map(L => L.y - L.h / 2);
+      for (let i = 0; i < ys.length; i++) ys[i] = Math.max(ys[i], i ? ys[i - 1] + list[i - 1].h + gap : rail.top);
+      for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.min(ys[i], i < ys.length - 1 ? ys[i + 1] - list[i].h - gap : rail.bottom - list[i].h);
+      for (let i = 0; i < ys.length; i++) ys[i] = Math.max(ys[i], i ? ys[i - 1] + list[i - 1].h + gap : rail.top);
+      const seg = (L, y) => { const x = rail.side < 0 ? rail.x + L.w : rail.x - L.w; return { p: [L.x, L.y], q: [x, y + L.h / 2] }; };
+      const slot = list.map((L, i) => i);
+      for (let round = 0; round < 12; round++) {
+        let swapped = false;
+        for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+          if (crosses(seg(list[i], ys[slot[i]]), seg(list[j], ys[slot[j]]))) { const t = slot[i]; slot[i] = slot[j]; slot[j] = t; swapped = true; }
+        }
+        if (!swapped) break;
       }
-      if (ok) placedBoxes.push([bx, by, bx + w, by + h]);
-      if (!ok) { L.el.style.display = 'none'; L.line.style.display = L.dot.style.display = 'none'; return; }
-      L.el.style.transform = 'translate(' + bx.toFixed(1) + 'px,' + by.toFixed(1) + 'px)';
-      L.line.setAttribute('x1', x.toFixed(1)); L.line.setAttribute('y1', y.toFixed(1));
-      L.line.setAttribute('x2', (ddx > 0 ? bx : ddx < 0 ? bx + w : bx + w / 2).toFixed(1)); L.line.setAttribute('y2', (ddy < 0 ? by + h : by).toFixed(1));
-      L.dot.setAttribute('cx', x.toFixed(1)); L.dot.setAttribute('cy', y.toFixed(1));
+      list.forEach((L, i) => {
+        if (ys[slot[i]] + L.h > rail.bottom + 1) { hideLab(L); return; } // no room left on this rail
+        const y = ys[slot[i]], bx = rail.side < 0 ? rail.x : rail.x - L.w, s = seg(L, y);
+        L.el.style.transform = 'translate(' + bx.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+        L.line.setAttribute('points', s.p[0].toFixed(1) + ',' + s.p[1].toFixed(1) + ' ' + s.q[0].toFixed(1) + ',' + s.q[1].toFixed(1));
+        L.dot.setAttribute('cx', L.x.toFixed(1)); L.dot.setAttribute('cy', L.y.toFixed(1));
+      });
     });
   }
 
@@ -212,12 +245,22 @@
     '3': { pos: [5.5, 5.2, 8.2], tgt: [0.3, 1.4, 0.2] },
     '4': { pos: [-7.5, 7.5, 14], tgt: [-2.2, 1.4, 5.4] }
   };
+  // A machine brings its own close-ups (2, 3, 4); shot 1 is framed from the free screen area in resize().
+  const SHOTS_DEFAULT = JSON.parse(JSON.stringify(SHOTS));
+  function setShots(own) { ['2', '3', '4'].forEach(k => { SHOTS[k] = (own && own[k]) || SHOTS_DEFAULT[k]; }); }
+  // A tall window (9:16) sees less sideways, so close-ups back off to keep the part in frame.
+  function shotPos(s) {
+    const pos = new T.Vector3(...s.pos), tgt = new T.Vector3(...s.tgt);
+    if (camera.aspect < 1 && s !== SHOTS['1']) pos.sub(tgt).multiplyScalar(Math.min(2.2, 1.25 / camera.aspect)).add(tgt);
+    return pos;
+  }
   let shot = null;
-  function goShot(k, instant) { const s = SHOTS[k]; shot = { pos: new T.Vector3(...s.pos), tgt: new T.Vector3(...s.tgt), t: 0 }; controls.autoRotate = false; if (instant) { camera.position.copy(shot.pos); controls.target.copy(shot.tgt); shot = null; } }
+  function goShot(k, instant) { const s = SHOTS[k]; shot = { pos: shotPos(s), tgt: new T.Vector3(...s.tgt), t: 0 }; controls.autoRotate = false; if (instant) { camera.position.copy(shot.pos); controls.target.copy(shot.tgt); shot = null; } }
   controls.addEventListener('start', () => { shot = null; });
 
   const dock = document.getElementById('dock');
-  let viewW = 1, viewH = 1, panelRects = [];
+  let viewW = 1, viewH = 1;
+  const rails = { left: { x: 30, side: -1, top: 0, bottom: 1 }, right: { x: 1, side: 1, top: 0, bottom: 1 } };
   function resize() {
     const mobile = window.innerWidth <= 900 && !document.body.classList.contains('hide-ui');
     const dockH = mobile ? dock.getBoundingClientRect().height : 0;
@@ -241,10 +284,14 @@
     const cx = (left + right) / 2, cy = top + (bottom - top) * 0.55;
     if (desktop) camera.setViewOffset(viewW, viewH, -(cx - viewW / 2), -(cy - viewH / 2), viewW, viewH); else camera.clearViewOffset();
     const tanV = Math.tan(T.MathUtils.degToRad(camera.fov / 2)), tanH = tanV * camera.aspect;
-    const dist = Math.max(11.5 / (tanH * fracW), 9.5 / (tanV * fracH)) * (desktop ? 1 : 1.4);
+    // A tall recording window (9:16, interface hidden) fits the machine's width, not the plinth's.
+    const tall = !desktop && document.body.classList.contains('hide-ui') && camera.aspect < 1;
+    const dist = tall ? 8.6 / tanH : Math.max(11.5 / (tanH * fracW), 9.5 / (tanV * fracH)) * (desktop ? 1 : 1.4);
     const dir = new T.Vector3(27, 30, 36).normalize();
     SHOTS['1'].pos = dir.multiplyScalar(dist).add(new T.Vector3(0, 3.0, -1.0)).toArray(); SHOTS['1'].tgt = [0, 3.0, -1.0];
-    panelRects = [...document.querySelectorAll('.panel, .title')].map(el => el.getBoundingClientRect());
+    const titleR = document.querySelector('.title').getBoundingClientRect();
+    Object.assign(rails.left, { x: left, top: Math.max(top, titleR.bottom + 16), bottom });
+    Object.assign(rails.right, { x: right, top, bottom });
   }
   window.addEventListener('resize', resize);
   if (window.ResizeObserver) { const ro = new ResizeObserver(resize); ro.observe(dock); document.querySelectorAll('.panel').forEach(el => ro.observe(el)); }
@@ -256,6 +303,7 @@
     if (k === ' ') { if (/INPUT|BUTTON|SUMMARY/.test(tag)) return; e.preventDefault(); actions.launch(); return; }
     if (k === 'c') { controls.autoRotate = !controls.autoRotate; shot = null; }
     else if (k === 'h') actions.toggleUI();
+    else if (k === 'm') actions.nextMachine();
     else if (k === 'f') { if (!document.fullscreenElement) { const d = document.documentElement; if (d.requestFullscreen) d.requestFullscreen().catch(() => {}); } else if (document.exitFullscreen) document.exitFullscreen(); }
     else if (SHOTS[k]) goShot(k);
   });
@@ -285,5 +333,5 @@
   }
 
   DSP.actions = actions;
-  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, glow, heat, pool, qb, initLabels, setLab, SHOTS, goShot, resize, run };
+  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, add, setParent, glow, heat, pool, qb, initLabels, setLab, showLabels, SHOTS, setShots, goShot, resize, run };
 })(window.DSP = window.DSP || {});

@@ -21,7 +21,7 @@ Everything below was learned the hard way. Read it before touching the code.
 - **UI:** retro screenprint theme (one CSS block marked `THEME: retro screenprint`), answer
   panel with a big red speed number, side race against RTX 5090 and Mac Studio (bars only),
   controls bar at the bottom, part labels with leader lines, dialogs for What's real and Keys.
-- **Keys:** Space launch, 1–4 camera shots, C orbit, H hide UI, F fullscreen.
+- **Keys:** Space launch, 1–4 camera shots, M next machine, C orbit, H hide UI, F fullscreen.
 
 ## Stack and why
 
@@ -58,7 +58,11 @@ Everything below was learned the hard way. Read it before touching the code.
    our themes with a different attribute, e.g. `data-look`.
 9. **Canvas textures** draw before web fonts load, so board text uses the fallback font. Fine.
 10. **Headless tests:** Chromium with SwiftShader works but runs at about 1 frame per second
-    and needs `--use-angle=swiftshader --enable-unsafe-swiftshader`. Route the CDN URLs to
+    and needs `--use-angle=swiftshader --enable-unsafe-swiftshader`. On the Spark, full Chromium
+    (not the headless shell) with `--use-angle=gles-egl` uses the GB10 and is about 10x faster.
+    `--use-angle=vulkan` draws black: NVIDIA's Linux Vulkan driver fails `createPipeline` in the
+    shadow pass (Mesa's lavapipe runs the same page fine), so engine.js drops shadows when the
+    renderer string says NVIDIA + Vulkan. Chrome's Linux default is OpenGL, so visitors don't hit it. Route the CDN URLs to
     local copies (`npm pack three@0.147.0`, `@fontsource/anton`, `@fontsource/archivo-narrow`,
     `@fontsource/ibm-plex-mono`). With a real GPU it's far faster.
 
@@ -86,7 +90,7 @@ prompt, `tg` = writing. Measured numbers replace the estimates and get tagged `m
 
 - ~~"GPU busy" is misleading~~ Fixed in Session A: now "GPU math used", explained in What's real.
 - ~~Pills don't re-sync when the selection changes from code~~ Fixed in Session A (`sel` is a Proxy).
-- Labels still crowd each other when zoomed in; side rails would fix it.
+- ~~Labels crowd each other when zoomed in~~ Session B: labels sit on two side rails, sorted by height, leaders never cross; a label with no room on its rail hides.
 - The claude.ai published link is a snapshot. The home is now GitHub Pages (see below).
 
 ## The kit (target layout; the built parts are described in `labs/kit/README.md`)
@@ -110,7 +114,7 @@ dist/                  (repo root) build output, one file per mission plus the h
 Rule: the split must render the same as today before any new feature goes in. Check it with
 `labs/tools/shoot.mjs` against `labs/_baseline/` (Session A did; only ~30 speckle pixels differed).
 
-## Next features (agreed)
+## Next features (agreed; 1-4 built in Session B, 5 is Session C)
 
 1. **Machine switcher** with three real interiors built from the parts library, same size on
    screen (equal treatment):

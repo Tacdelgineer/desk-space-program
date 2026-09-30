@@ -1,13 +1,11 @@
 /* =========================================================
-   MACHINE: DGX Spark. Where each part sits, the board texture, and how the
-   machine lights up as the simulation runs (animate).
-   build() returns { animate, labels, outP, spillP, tileTop, PORT }.
+   MACHINE: DGX Spark. Where each part sits and the board texture. The parts light up by the
+   shared rules in kit/board.js. build() returns the machine (see the end of this file).
    ========================================================= */
 (function (DSP) {
   'use strict';
   if (!DSP.parts) return;
   const E = DSP.engine, P = DSP.parts, T = E.T, scene = E.scene, mesh = E.mesh, std = E.std, M = P.M, rbox = P.rbox, scatter = P.scatter;
-  const qb = E.qb, glow = E.glow, heat = E.heat, reduceMotion = E.reduceMotion;
 
   /* ---------- board texture: color, metal and roughness maps drawn together ---------- */
   const BW = 15, S = 2048;
@@ -77,10 +75,9 @@
 
   function build() {
     const Y0 = 1.1; // top of the board
+    const group = new T.Group(); scene.add(group); E.setParent(group);
     const CHIPS = [];
     [-4.4, 4.4].forEach(x => [-2.85, -0.95, 0.95, 2.85].forEach(z => CHIPS.push({ x, z })));
-
-    P.stand('DESK SPACE PROGRAM   MISSION 01: LIFTOFF', 'DGX SPARK');
 
     // case: base tray, two walls kept (cutaway)
     mesh(rbox(16.6, 0.5, 16.6, 0.2), M.gold, 0, 0.25, 0);
@@ -90,36 +87,19 @@
     mesh(new T.BoxGeometry(0.5, 0.06, 16.6), M.dark, -8.05, 5.31, 0);
 
     // board
-    const pcbTex = pcb(CHIPS);
-    mesh(new T.BoxGeometry(15, 0.16, 15), std(0x0b1220, 0.6, 0.1), 0, Y0 - 0.08, 0);
-    const boardTop = new T.Mesh(new T.PlaneGeometry(15, 15), new T.MeshStandardMaterial({ map: pcbTex.map, metalnessMap: pcbTex.metal, roughnessMap: pcbTex.rough, metalness: 1, roughness: 1, envMapIntensity: 0.9 }));
-    boardTop.rotation.x = -Math.PI / 2; boardTop.position.y = Y0 + 0.002; boardTop.receiveShadow = true; scene.add(boardTop);
+    P.board(15, 15, Y0, pcb(CHIPS));
 
     // main chip (GB10): substrate, GPU die, CPU die
     const { DIE_Y, tileTop, smTiles, cpuTiles } = P.gb10(Y0);
 
     // memory chips + 1 GB cells
-    const { cells, cellPos, CELL_Y } = P.memory(CHIPS, Y0);
+    const mem = P.memory(CHIPS, Y0);
 
-    // memory bus glow ribbons + flowing data
-    const LANES = CHIPS.map(ch => {
-      const s = new T.Vector3(ch.x > 0 ? ch.x - 0.8 : ch.x + 0.8, Y0 + 0.02, ch.z);
-      const e = new T.Vector3(ch.x > 0 ? 2.35 : -2.35, Y0 + 0.02, ch.z * 0.72);
-      return { s, e, dir: e.clone().sub(s).normalize() };
-    });
-    const laneMat = new T.MeshBasicMaterial({ color: 0x27f2d2, transparent: true, opacity: 0.0, blending: T.AdditiveBlending, depthWrite: false });
-    LANES.forEach(L => {
-      const len = L.s.distanceTo(L.e);
-      const g = new T.PlaneGeometry(len, 0.8); g.rotateX(-Math.PI / 2);
-      const m = new T.Mesh(g, laneMat); m.position.copy(L.s).add(L.e).multiplyScalar(0.5); m.position.y = Y0 + 0.012;
-      m.rotation.y = -Math.atan2(L.e.z - L.s.z, L.e.x - L.s.x); scene.add(m);
-    });
-    const FLOW_PER = 30, flowN = LANES.length * FLOW_PER;
-    const flowPos = new Float32Array(flowN * 3), flowT = new Float32Array(flowN), flowO = new Float32Array(flowN);
-    for (let i = 0; i < flowN; i++) { flowT[i] = Math.random(); flowO[i] = (Math.random() - 0.5) * 0.7; }
-    const flowGeo = new T.BufferGeometry(); flowGeo.setAttribute('position', new T.BufferAttribute(flowPos, 3));
-    const flowMat = new T.PointsMaterial({ color: 0x5ffbe3, size: 0.13, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
-    const flowPts = new T.Points(flowGeo, flowMat); flowPts.frustumCulled = false; scene.add(flowPts);
+    // memory bus: one lane per chip, 32 bits each, 256 bits in all
+    const bus = DSP.board.bus(CHIPS.map(ch => ({
+      s: new T.Vector3(ch.x > 0 ? ch.x - 0.8 : ch.x + 0.8, Y0 + 0.02, ch.z),
+      e: new T.Vector3(ch.x > 0 ? 2.35 : -2.35, Y0 + 0.02, ch.z * 0.72)
+    })), Y0);
 
     // power delivery: inductors, polymer caps, ceramic caps
     const indPos = [], capPos = [];
@@ -149,12 +129,12 @@
     const COOL_Y = 6.4;
     P.cooler(COOL_Y);
     const FAN = new T.Vector3(0, 9.1, -4.8);
-    const { fan, ringM } = P.fan(FAN);
+    const fan = P.fan(FAN);
     // exploded-view guide lines
     const dashM = new T.LineDashedMaterial({ color: 0x9ea4d2, dashSize: 0.25, gapSize: 0.18, transparent: true, opacity: 0.55 });
     [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]].forEach(([x, z]) => {
       const l = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(x + 0.1, COOL_Y - 0.2, z), new T.Vector3(x * 1.04, DIE_Y + 0.02, z * 1.04)]), dashM);
-      l.computeLineDistances(); scene.add(l);
+      l.computeLineDistances(); E.add(l);
     });
 
     P.tuneEnv();
@@ -164,102 +144,29 @@
     const outP = E.pool(80, 0xffc93c, 0.34);
     const spillP = E.pool(160, 0xff3d9a, 0.22);
     const SSD_C = new T.Vector3(-2.2, SSD_Y + 0.3, 5.6);
-    const PORT = new T.Vector3(-1.1, Y0 + 1.1, -7.9);
 
     const labels = [
-      { id: 'mem', at: new T.Vector3(4.4, CELL_Y, -2.85), dx: 70, dy: -120, title: 'Memory: the fuel tank' },
-      { id: 'bus', at: new T.Vector3(3.0, Y0 + 0.05, -2.0), dx: 150, dy: 40, title: 'Memory bus: the fuel line' },
-      { id: 'gpu', at: new T.Vector3(0.9, tileTop, 0.6), dx: 30, dy: 150, title: 'Blackwell GPU: the engine' },
-      { id: 'cpu', at: new T.Vector3(-1.5, tileTop, 1.0), dx: -210, dy: 70, title: 'Grace CPU' },
-      { id: 'ssd', at: new T.Vector3(-2.6, SSD_Y + 0.2, 5.6), dx: -150, dy: 40, title: 'SSD' },
-      { id: 'fan', at: new T.Vector3(1.4, FAN.y + 0.25, -4.8), dx: -30, dy: -110, title: 'Cooler, lifted off' }
+      { id: 'mem', at: new T.Vector3(4.4, mem.CELL_Y, -2.85), title: 'Memory: the fuel tank' },
+      { id: 'bus', at: new T.Vector3(3.0, Y0 + 0.05, -2.0), title: 'Memory bus: the fuel line' },
+      { id: 'gpu', at: new T.Vector3(0.9, tileTop, 0.6), title: 'Blackwell GPU: the engine' },
+      { id: 'cpu', at: new T.Vector3(-1.5, tileTop, 1.0), title: 'Grace CPU' },
+      { id: 'ssd', at: new T.Vector3(-2.6, SSD_Y + 0.2, 5.6), title: 'SSD' },
+      { id: 'fan', at: new T.Vector3(1.4, FAN.y + 0.25, -4.8), title: 'Cooler, lifted off' }
     ];
 
-    /* ---------- how the machine lights up ---------- */
-    const col = new T.Color();
-    const C_EMPTY = new T.Color(0.018, 0.02, 0.03), C_SYS = new T.Color(0.09, 0.1, 0.22), C_W = new T.Color(0.09, 0.95, 0.8), C_KV = new T.Color(0.85, 0.87, 1.0), C_OVER = new T.Color(1.4, 0.18, 0.55);
+    const animate = DSP.board.lightUp({ mem, gpu: smTiles, cpu: cpuTiles, bus, fans: [fan], gpuBox: [0.6, 0, 2.8, 3.55, DIE_Y + 0.14], loadFrom: SSD_C, loadP, outP, spillP });
+    E.setParent(null);
 
-    // sim: the mission's state, model: the selected model, dt and time in seconds
-    function animate(sim, model, dt, time) {
-      const p = sim.plan;
-      fan.rotation.y += sim.fan * dt * 6;
-      if (reduceMotion) fan.rotation.y = 0;
-
-      // memory cells
-      const usable = p.usable, wC = Math.min(usable, p.weightsGB), kC = p.fits ? p.kvGB : Math.max(0, usable - wC);
-      const shownW = wC * sim.load, shownK = kC * Math.max(0, sim.load * 1.4 - 0.4);
-      const tokPhase = sim.tokens - Math.floor(sim.tokens);
-      const nW = Math.ceil(wC);
-      for (let i = 0; i < 128; i++) {
-        if (i >= usable) { col.copy(C_SYS); }
-        else if (i < shownW) {
-          const part = Math.min(1, shownW - i);
-          col.copy(C_W).multiplyScalar(0.28 + 0.5 * part);
-          if (sim.phase === 'writing') {
-            let hit = 0;
-            if (model.moe) hit = sim.activeSet && sim.activeSet.has(i) ? sim.flash : 0;
-            else { const d = Math.abs(i / Math.max(1, nW) - tokPhase); hit = Math.max(0, 1 - d * 9); }
-            col.lerp(new T.Color(0.7, 1.6, 1.45), hit * 0.8);
-          } else if (sim.phase === 'reading') col.multiplyScalar(1.15 + 0.25 * Math.sin(time * 7 + i));
-        } else if (i < shownW + shownK) { col.copy(C_KV).multiplyScalar(0.5); }
-        else col.copy(C_EMPTY);
-        if (!p.fits && sim.load >= 1 && i < usable && i >= usable - 10) col.copy(C_OVER).multiplyScalar(0.55 + 0.45 * Math.sin(time * 9));
-        cells.setColorAt(i, col);
-      }
-      cells.instanceColor.needsUpdate = true;
-      if (!p.fits && sim.load >= 1 && Math.random() < dt * 30) {
-        const c = cellPos[Math.floor(Math.random() * 112)];
-        spillP.spawn({ life: 1.6, fade: true, p: c.clone().setY(c.y + 0.1), v: new T.Vector3(Math.sign(c.x) * (2 + Math.random() * 2), 3 + Math.random() * 2, (Math.random() - 0.5) * 2) });
-      }
-      // loading arcs from the SSD
-      if (sim.phase === 'loading' && sim.load < 0.95 && Math.random() < dt * 60) {
-        const target = cellPos[Math.floor(Math.random() * Math.max(1, Math.min(nW, 120)))];
-        const mid = SSD_C.clone().add(target).multiplyScalar(0.5).setY(4.5);
-        loadP.spawn({ life: 0.8, path: t => qb(SSD_C, mid, target, t) });
-      }
-
-      // GPU tiles: blazing while reading, brief flashes while writing
-      for (let i = 0; i < 48; i++) {
-        let h;
-        if (sim.phase === 'reading') h = 0.75 + 0.35 * Math.random();
-        else if (sim.phase === 'writing') h = sim.flash * sim.flash * (0.4 + 0.6 * Math.random()) * Math.min(1, 0.3 + p.busyWrite * 8);
-        else h = 0.0;
-        col.setRGB(0.012 + 1.7 * h, 0.013 + 0.75 * Math.pow(h, 1.5), 0.02 + 0.25 * h * h * h);
-        smTiles.setColorAt(i, col);
-      }
-      smTiles.instanceColor.needsUpdate = true;
-      for (let i = 0; i < 20; i++) {
-        const h = (sim.phase === 'reading' ? 0.3 : sim.phase === 'writing' ? 0.12 : 0.03) * (0.6 + 0.4 * Math.sin(time * 3 + i * 1.7));
-        col.setRGB(0.012 + 0.3 * h, 0.014 + 0.4 * h, 0.03 + 1.1 * h); cpuTiles.setColorAt(i, col);
-      }
-      cpuTiles.instanceColor.needsUpdate = true;
-      heat.intensity = sim.gpu * 7 + sim.flash * 2;
-
-      // bus flow
-      laneMat.opacity = 0.02 + sim.bus * 0.16;
-      flowMat.opacity = sim.phase === 'reading' || sim.phase === 'writing' ? 0.25 + 0.75 * sim.bus : 0.12;
-      const flowSpeed = (0.15 + sim.bus * 2.4) * (sim.phase === 'writing' || sim.phase === 'reading' ? 1 : 0.2);
-      for (let l = 0; l < LANES.length; l++) {
-        const L = LANES[l];
-        for (let j = 0; j < FLOW_PER; j++) {
-          const i = l * FLOW_PER + j;
-          flowT[i] += dt * flowSpeed * (0.8 + 0.4 * ((j * 7) % 5) / 5); if (flowT[i] > 1) flowT[i] -= 1;
-          const t = flowT[i];
-          flowPos[i * 3] = L.s.x + (L.e.x - L.s.x) * t - L.dir.z * flowO[i];
-          flowPos[i * 3 + 1] = Y0 + 0.06;
-          flowPos[i * 3 + 2] = L.s.z + (L.e.z - L.s.z) * t + L.dir.x * flowO[i];
-        }
-      }
-      flowGeo.attributes.position.needsUpdate = true;
-      glow.intensity = sim.bus * 1.1;
-      ringM.color.setRGB(0.15 + 0.4 * sim.gpu, 0.5 + 0.8 * sim.gpu * 0.3 + 0.2, 0.5);
-
-      loadP.update(dt); outP.update(dt); spillP.update(dt);
-    }
-
-    return { animate, labels, outP, spillP, tileTop, PORT };
+    return {
+      group, animate, labels, outP, spillP,
+      chips: '8 chips', busBits: 256,
+      notes: { cpu: '20 Arm cores', ssd: '4 TB, where models wait', fan: 'spins up under load' }, loadingLabel: 'ssd',
+      // answer packets leave the GPU for the back ports
+      out: { from: new T.Vector3(0.6, tileTop + 0.05, 0), spread: [1, 2], mid: new T.Vector3(-0.3, 4.2, -4.2), to: new T.Vector3(-1.1, Y0 + 1.1, -7.9) },
+      glowAt: [0, 3, 0], heatAt: [0.6, 2.4, 0]
+    };
   }
 
   DSP.machines = DSP.machines || {};
-  DSP.machines.spark = { build };
+  DSP.machines.spark = { build, name: 'DGX SPARK' };
 })(window.DSP = window.DSP || {});

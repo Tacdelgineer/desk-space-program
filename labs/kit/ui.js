@@ -23,16 +23,23 @@
     document.querySelectorAll('.pills input').forEach(i => { i.checked = sel[i.name] === i.value; });
   }
 
-  /* ---------- race panel: one row per machine ---------- */
+  // Marks on a slider track: [{ at: percent, cls, title }]
+  function ticks(host, marks) {
+    const el = document.getElementById(host); el.innerHTML = '';
+    marks.forEach(m => { const i = document.createElement('i'); i.className = m.cls || ''; i.style.left = m.at.toFixed(1) + '%'; i.title = m.title || ''; el.appendChild(i); });
+  }
+
+  /* ---------- race panel: one row per machine; the one on the stand is marked "inside view" ---------- */
   function buildRace(machines) {
     const rrows = document.getElementById('rrows');
     machines.forEach(m => {
-      const d = document.createElement('div'); d.className = 'rrow' + (m.id === 'spark' ? ' this' : '');
+      const d = document.createElement('div'); d.className = 'rrow'; d.dataset.id = m.id;
       d.innerHTML = '<div class="top"><b></b><span></span></div><div class="track"><i></i></div>';
       d.querySelector('b').textContent = m.name; rrows.appendChild(d); m.row = d;
     });
   }
-  function renderRace(sim) {
+  function setRaceThis(id) { document.querySelectorAll('.rrow').forEach(d => d.classList.toggle('this', d.dataset.id === id)); }
+  function renderRace(sim, crew) {
     const running = sim.phase === 'reading' || sim.phase === 'writing' || sim.phase === 'done';
     let winner = null;
     sim.others.forEach(o => { if (o.p.fits && (!winner || o.p.totalS < winner.p.totalS)) winner = o; });
@@ -43,7 +50,7 @@
       if (!p.fits) { txt = 'Doesn\'t fit: needs ' + fmtGB(p.needGB) + ' GB'; cls = 'bad'; }
       else if (!running) { txt = 'Fits, ' + fmtGB(p.needGB) + ' of ' + p.usable + ' GB'; }
       else if (t < p.readS) { txt = 'Reading ' + Math.floor(t / p.readS * 100) + '%'; w = t / p.readS; read = true; }
-      else if (t < p.totalS) { const tok = (t - p.readS) * p.writeTps; txt = fmtT(p.writeTps) + ' tok/s, ' + Math.floor(tok) + ' of ' + ANSWER; w = tok / ANSWER; }
+      else if (t < p.totalS) { const tok = (t - p.readS) * p.writeTps; txt = (crew > 1 ? fmtT(p.totalTps) + ' tok/s total, ' : fmtT(p.writeTps) + ' tok/s, ') + Math.floor(tok) + ' of ' + ANSWER; w = tok / ANSWER; }
       else { txt = 'Done in ' + fmtS(p.totalS); w = 1; cls = winner && winner.m.id === o.m.id ? 'win' : ''; if (cls) txt = 'First, ' + fmtS(p.totalS); }
       if (span.textContent !== txt) span.textContent = txt;
       span.className = cls; bar.style.width = (w * 100).toFixed(1) + '%'; bar.classList.toggle('read', read);
@@ -62,5 +69,5 @@
   document.getElementById('open-info').addEventListener('click', () => openDlg(document.getElementById('info')));
   document.getElementById('open-keys').addEventListener('click', () => openDlg(document.getElementById('keys-dlg')));
 
-  DSP.ui = { pills, syncPills, buildRace, renderRace, toast, toggleUI };
+  DSP.ui = { pills, syncPills, ticks, buildRace, setRaceThis, renderRace, toast, toggleUI };
 })(window.DSP = window.DSP || {});

@@ -107,6 +107,26 @@ legend{font-family:var(--mono);font-size:.7rem;font-weight:500;letter-spacing:.0
 .pill:hover span{background:var(--yellow)}
 .pill input:checked + span{background:var(--ink);color:var(--paper)}
 .pill input:focus-visible + span{outline:3px solid var(--red);outline-offset:2px}
+.pills.small .pill span{padding:3px 7px;font-size:.8rem}
+/* dials: the model-size handle and the crew dial, a printed track with a red block for a thumb */
+.dial{flex:1 1 13rem;min-width:12rem;max-width:21rem}
+.dial.size{flex-basis:28rem;max-width:32rem}
+.row-break{flex-basis:100%;height:0}
+.dial legend b{font-family:var(--mono);font-weight:500;color:var(--ink);margin-left:6px;text-transform:none;font-size:.78rem}
+.track-wrap{position:relative;height:24px;margin:0 0 6px}
+.track-wrap input{position:absolute;left:0;right:0;top:0;width:100%;height:24px;margin:0;background:transparent;-webkit-appearance:none;appearance:none;cursor:pointer}
+.track-wrap input::-webkit-slider-runnable-track{height:12px;border:2px solid var(--ink);background:var(--paper-2)}
+.track-wrap input::-moz-range-track{height:8px;border:2px solid var(--ink);background:var(--paper-2)}
+.track-wrap input::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:24px;margin-top:-8px;background:var(--red);border:2px solid var(--ink);border-radius:0;box-shadow:2px 2px 0 var(--ink)}
+.track-wrap input::-moz-range-thumb{width:12px;height:20px;background:var(--red);border:2px solid var(--ink);border-radius:0;box-shadow:2px 2px 0 var(--ink)}
+.track-wrap input:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+.ticks{position:absolute;left:8px;right:8px;top:0;height:24px;pointer-events:none}
+.ticks i{position:absolute;top:1px;width:2px;height:22px;margin-left:-1px;background:var(--ink)}
+.ticks i.moe{background:var(--teal)}
+.ticks i.gpu{width:4px;margin-left:-2px;background:var(--red)}
+.ticks i.mem{width:4px;margin-left:-2px;background:repeating-linear-gradient(var(--red) 0 3px,transparent 3px 6px)}
+.dial-note{display:block;font-family:var(--mono);font-size:.68rem;color:var(--ink-soft)}
+.dial-note.hit{color:var(--red)}
 .actions{display:flex;gap:10px;align-items:flex-end;margin-left:auto}
 .btn{font-weight:700;font-size:1rem;padding:9px 16px;border:2.5px solid var(--ink);cursor:pointer;background:var(--paper);color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
 .btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
@@ -149,6 +169,16 @@ kbd{font-family:var(--mono);font-size:.74rem;padding:1px 6px;border:2px solid va
 .loading{position:fixed;inset:0;display:grid;place-items:center;z-index:8;background:var(--ink);color:var(--paper);font-family:var(--display);font-size:1.6rem;letter-spacing:.03em;text-transform:uppercase;transition:opacity .6s}
 .loading.gone{opacity:0;pointer-events:none}
 
+/* laptop screens: narrower side panels and smaller pills keep the controls to two rows */
+@media (min-width:901px) and (max-width:1600px){
+  .answer,.race{width:20rem}
+  .controls{right:calc(20rem + 30px + 26px)}
+  .pill span{padding:4px 8px;font-size:.85rem}
+  .btn-launch{padding:5px 16px;font-size:1.2rem}
+  .dial{min-width:10rem;flex-basis:10.5rem}
+  .dial.size{flex-basis:19rem}
+}
+@media (min-width:901px) and (max-height:860px){ .hint{display:none} }
 /* ---------- phones ---------- */
 @media (max-width:900px){
   /* the grain and wear textures are SVG noise filters, slow to paint on phones */
