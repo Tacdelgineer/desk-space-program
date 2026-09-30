@@ -76,9 +76,9 @@ Shot list: 1) key 1, the Spark loading (arcs from the SSD into the memory cells)
 Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=rtx5090&model=flash&bits=4&prompt=q&crew=1&shot=2&record=1
   (the fix, for the end: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=rtx5090&model=q36&bits=4&prompt=q&crew=1&shot=2&record=1 )
 Guess card options: Qwen3.8-Flash-Next on an RTX 5090 writes at... A) 200 tokens/s / B) 50 tokens/s / C) it can't run it
-Mission Report: M01 LIFTOFF   QWEN3.8-FLASH-NEXT, 4-BIT | FITS? YES / NO / YES | TOKENS/S 24 (meas.) / NO / 104 (est.) | DONE IN 6.8 s (meas.) / NO / 1.7 s (est.) | 101 GB of model, 30.5 GB of room: speed means nothing if it doesn't fit | NEXT: the bigger model that writes 5x faster
-Source of each number: the lists above. 101 GB = weights and table plus prompt memory at 4-bit (estimated for the 5090); the real file the Spark runs is 111 GB (`weightsGB`). 30.5 GB = `memGB` 32 minus `reserveGB` 1.5 of `rtx5090`.
-Shot list: 1) key 1, the 5090 loading over the PCIe slot. 2) key 2: the 16 chips fill up, the last ones turn magenta and spill. 3) key 4: the PCIe slot, where there's no more room to send. 4) M twice (to the Spark): the same model fits, with 9 GB to spare. 5) the fix link: Qwen3.6 35B MoE fits the 5090 (est. 513 tokens/s).
+Mission Report: M01 LIFTOFF   QWEN3.8-FLASH-NEXT, 4-BIT | FITS? YES / NO / YES | TOKENS/S 24 (meas.) / NO / 104 (est.) | DONE IN 6.8 s (meas.) / NO / 1.7 s (est.) | 72 GB on the card even with its lookup table left in the PC, 30.5 GB of room: speed means nothing if it doesn't fit | NEXT: the bigger model that writes 5x faster
+Source of each number: the lists above. 72 GB = the weights without the 29 GB lookup table, plus prompt memory, at 4-bit (estimated for the 5090; a graphics card leaves the table in the PC's memory, `tableOnHost` in `machines.json`, so the whole model would be 101 GB); the real file the Spark runs is 111 GB (`weightsGB`). 30.5 GB = `memGB` 32 minus `reserveGB` 1.5 of `rtx5090`.
+Shot list: 1) key 1, the 5090 loading over the PCIe slot. 2) key 2: the 16 chips fill up, the last ones turn magenta and spill. 3) key 4: the PCIe slot, where there's no more room to send. 4) the Spark (its machine button, or M four times round: Mac, Strix Halo, Pro 6000, Spark): the same model fits, with 9 GB to spare. 5) the fix link: Qwen3.6 35B MoE fits the 5090 (est. 513 tokens/s).
 
 ### Episode 3
 Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q27&bits=4&prompt=q&crew=1&shot=2&record=1
@@ -106,14 +106,14 @@ Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machi
 Guess card options: How much faster does the 5090 move memory? A) 2x / B) 6.6x / C) the same
 Mission Report: M01 LIFTOFF   QWEN3.6 35B MOE, 4-BIT | FITS? YES / YES / YES | TOKENS/S 67 (meas.) / 513 / 234 (est.) | DONE IN 2.4 s (meas.) / 0.3 s / 0.8 s (est.) | Twice the lanes, each 3.3x faster: 6.6x the bandwidth, but only 32 GB | NEXT: no desk can hold this model
 Source of each number: the lists above. 6.6x = `bw` 1,792 / 273. Lane counts (8 and 16, 32 bits each) are drawn in `labs/machines/spark.js` and `rtx5090.js`. The 5090's 513 is an estimate against the Spark's measured 67.
-Shot list: 1) key 1, the Spark: count the 8 bus lanes. 2) M: the Spark sinks into the stand and the 5090 rises. 3) key 2 on the 5090: 16 short, fat lanes, 2 cells per chip. 4) Space: 513 tokens/s against 67. 5) M twice (past the Mac) back to the Spark for the loop.
+Shot list: 1) key 1, the Spark: count the 8 bus lanes. 2) M: the Spark sinks into the stand and the 5090 rises. 3) key 2 on the 5090: 16 short, fat lanes, 2 cells per chip. 4) Space: 513 tokens/s against 67. 5) M four times (past the Mac, the Strix Halo and the Pro 6000) back to the Spark for the loop.
 
 ### Episode 7
 Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=mac&model=max&bits=4&prompt=q&crew=1&shot=2&record=1
 Guess card options: Qwen3.8-Max at 4-bit needs... A) 128 GB / B) 256 GB / C) 1,380 GB
 Mission Report: M01 LIFTOFF   QWEN3.8-MAX, 4-BIT | FITS? NO / NO / NO | TOKENS/S NO / NO / NO | DONE IN NO / NO / NO | 2.4 trillion parameters: 1,380 GB at 4-bit, five times the biggest Mac | NEXT: 51 billion parameters it barely touches
 Source of each number: the lists above. 1,380 GB = (`total` 2,419.8B) x `bpp` 0.57 plus prompt memory (estimated; no file, nothing here can load it). 248 GB = `memGB` 256 minus `reserveGB` 8 of `mac`.
-Shot list: 1) key 2 on the Mac: all 256 cells fill and turn magenta. 2) M: the Spark, overflowing even faster. 3) M: the 5090, one chip's worth. 4) the size handle dragged down from 2.4T until the first machine fits.
+Shot list: 1) key 2 on the Mac: all 256 cells fill and turn magenta. 2) M, M: the Strix Halo and the RTX Pro 6000 overflow even faster. 3) M, M: the Spark, then the 5090, one chip's worth. 4) the size handle dragged down from 2.4T until the first machine fits.
 
 ### Episode 8
 Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=flash&bits=4&prompt=q&crew=1&shot=2&record=1
