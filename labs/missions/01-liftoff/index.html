@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Your GPU isn't slow. It's starving. | Inside a DGX Spark, an RTX 5090, a Mac Studio and a Strix Halo</title>
-<meta name="description" content="Open up a DGX Spark, an RTX 5090, a Mac Studio or an AMD Strix Halo mini PC and watch an AI model run inside it. The model lives in the memory chips, and for every word it writes, the whole model crosses the memory bus while the GPU mostly waits.">
+<title>Your GPU isn't slow. It's starving. | Inside a DGX Spark, an RTX 5090, a Mac Studio, a Strix Halo and an RTX Pro 6000</title>
+<meta name="description" content="Open up a DGX Spark, an RTX 5090, a Mac Studio, an AMD Strix Halo mini PC or an RTX Pro 6000 and watch an AI model run inside it. The model lives in the memory chips, and for every word it writes, the whole model crosses the memory bus while the GPU mostly waits.">
 <meta name="theme-color" content="#1b1712">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -79,9 +79,10 @@
 <dialog id="info" aria-labelledby="info-h">
   <h2 id="info-h">What's real on this page</h2>
   <ul>
-    <li>The specs are published figures. DGX Spark: 128 GB of shared memory on a 256-bit bus, 273 GB/s, a 20-core Arm CPU next to a Blackwell GPU. RTX 5090: 32 GB of GDDR7 in 16 chips on a 512-bit bus, 1,792 GB/s. Mac Studio M3 Ultra: 256 GB on the chip package, a 1,024-bit bus, 819 GB/s. AMD Strix Halo (AMD's own mini PC with the Ryzen AI Max+ 395): 128 GB of LPDDR5X-8000 on a 256-bit bus, 256 GB/s, 16 Zen 5 cores on two chiplets and a Radeon 8060S GPU with 40 compute units on the third die, 120 W.</li>
+    <li>The specs are published figures. DGX Spark: 128 GB of shared memory on a 256-bit bus, 273 GB/s, a 20-core Arm CPU next to a Blackwell GPU. RTX 5090: 32 GB of GDDR7 in 16 chips on a 512-bit bus, 1,792 GB/s. Mac Studio M3 Ultra: 256 GB on the chip package, a 1,024-bit bus, 819 GB/s. AMD Strix Halo (AMD's own mini PC with the Ryzen AI Max+ 395): 128 GB of LPDDR5X-8000 on a 256-bit bus, 256 GB/s, 16 Zen 5 cores on two chiplets and a Radeon 8060S GPU with 40 compute units on the third die, 120 W. RTX Pro 6000 Blackwell Workstation Edition: the 5090's GB202 chip with 188 of its 192 SMs switched on (the 5090 has 170), 96 GB of GDDR7 in 32 chips, 16 on each side of the board, on the same 512-bit bus, 1,792 GB/s, 600 W.</li>
     <li>On Linux the Strix Halo's GPU may use only about half of the memory until a kernel setting raises the limit; the lab assumes the usual setting for local AI, 120 GB. Its compute figure is our estimate from AMD's numbers (40 compute units at 2.9 GHz): about 59 TFLOPS of 16-bit math, drawn as a GPU about half the size of the Spark's.</li>
-    <li>The boards are illustrations, not teardowns. Placement, part counts and the coolers are simplified. Each glowing cell on a memory chip is 1 GB, and each glowing lane of the bus is 32 bits wide, so you can count them: 8, 16, 32 and 8.</li>
+    <li>The boards are illustrations, not teardowns. Placement, part counts and the coolers are simplified. Each glowing cell on a memory chip is 1 GB, and each glowing lane of the bus is 32 bits wide, so you can count them: 8, 16, 32, 8 and 16. The RTX Pro 6000's lanes each feed two chips, one on top of the board and one underneath, so its 16 memory spots hold 6 cells.</li>
+    <li>A graphics card sits in a PC, and llama.cpp keeps a model's lookup table in the PC's own memory, so on the 5090 and the Pro 6000 only the rest has to fit on the card. That is how Flash-Next's 111 GB file runs on a 96 GB card. The Pro 6000's 16-bit math is NVIDIA's figure with 32-bit adding, 504 TFLOPS; GeForce cards like the 5090 do that at half rate.</li>
     <li>The crew dial runs several requests at once. Each step reads the weights once for everyone plus each request's prompt memory, and does the math once per request, so the total speed climbs until the GPU's math catches up with memory or the prompt memory no longer fits.</li>
     <li>The five models' sizes come from their own checkpoints: parameters added up from the tensor shapes, and the prompt memory from each config (how many layers keep a cache, how many key-value heads, how wide). Qwen3.6 and Qwen3.8 keep a growing cache on only a quarter of their layers; the rest keep a small fixed state. Gemma 4 E4B shares its cache across 18 of its 42 layers.</li>
     <li>Amber cells are a lookup table: Flash-Next's n-gram table (51B parameters) and Gemma's per-layer embeddings. They sit in memory, but each token reads only a few rows, so they barely flicker. On the Spark the table stays in CPU memory, mapped from the file.</li>
@@ -94,7 +95,7 @@
     <li>GPU math used is the share of the GPU's math capacity in use. nvidia-smi shows a much higher busy figure while writing, because it counts any moment a program is running on the GPU, even one that mostly waits for memory.</li>
     <li>Not modeled yet: heat, and the extra work of attention on very long prompts.</li>
   </ul>
-  <p id="real-foot">In the real series the Spark's numbers are measured on the machine. The Strix Halo's come from other people's published runs, tagged reported. Other machines stay marked as estimated until they're measured.</p>
+  <p id="real-foot">In the real series the Spark's numbers are measured on the machine. The Strix Halo's, and one of the RTX Pro 6000's, come from other people's published runs, tagged reported. Other numbers stay marked as estimated until they're measured.</p>
   <form method="dialog"><button class="btn" type="submit">Close</button></form>
 </dialog>
 
@@ -105,7 +106,7 @@
     <dt><kbd>1</kbd></dt><dd>Whole machine</dd>
     <dt><kbd>2</kbd></dt><dd>Close up on the memory</dd>
     <dt><kbd>3</kbd></dt><dd>Close up on the GPU</dd>
-    <dt><kbd>4</kbd></dt><dd>Close up on where models load from (the SSD, or the 5090's PCIe slot)</dd>
+    <dt><kbd>4</kbd></dt><dd>Close up on where models load from (the SSD, or a graphics card's PCIe slot)</dd>
     <dt><kbd>M</kbd></dt><dd>Next machine (works with the interface hidden)</dd>
     <dt><kbd>C</kbd></dt><dd>Slow cinematic orbit</dd>
     <dt><kbd>H</kbd></dt><dd>Hide the interface for recording</dd>
@@ -121,6 +122,7 @@
 <script type="application/json" id="data-models" src="../../data/models.json"></script>
 <script type="application/json" id="data-measured" src="../../data/measured/spark.json"></script>
 <script type="application/json" id="data-reported-strix" src="../../data/reported/strix.json"></script>
+<script type="application/json" id="data-reported-pro6000" src="../../data/reported/pro6000.json"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/CopyShader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
@@ -139,6 +141,7 @@
 <script src="../../machines/rtx5090.js"></script>
 <script src="../../machines/m3ultra.js"></script>
 <script src="../../machines/strixhalo.js"></script>
+<script src="../../machines/rtxpro6000.js"></script>
 <script src="mission.js"></script>
 </body>
 </html>

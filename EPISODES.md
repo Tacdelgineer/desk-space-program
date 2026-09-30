@@ -18,6 +18,8 @@ Status: idea → ready (preset works, numbers filled) → filmed → posted.
 | 8 | 01 Liftoff | 51 billion parameters it barely touches | Spark, Qwen3.8-Flash-Next, 4-bit | memory (2), amber table cells | ready |
 | 9 | 01 Liftoff | It writes as fast as a DGX Spark, then loses by 15 seconds | Strix Halo vs Spark, Qwen3.8 27B, 4-bit, question then document | GPU (3) while reading | ready |
 | 10 | 01 Liftoff | This mini PC runs a model the RTX 5090 can't load | Strix Halo, Qwen3.8-Flash-Next, 4-bit (then the 5090) | overview (1), all 8 packages fill | ready |
+| 11 | 01 Liftoff | A 111 GB model on a 96 GB card | RTX Pro 6000, Qwen3.8-Flash-Next, 4-bit, codebase | overview (1), no amber cells on the card | ready |
+| 12 | 01 Liftoff | Same chip as an RTX 5090, three times the room | RTX Pro 6000 vs 5090, Qwen3.8 27B, 4-bit then 16-bit | memory (2), the 5090 spills | ready |
 
 For each episode that turns "ready", fill in underneath:
 
@@ -25,16 +27,16 @@ For each episode that turns "ready", fill in underneath:
 ### Episode N
 Preset link:
 Guess card options: A / B / C
-Mission Report:  subtitle | FITS? | TOKENS/S | DONE IN (Spark, 5090, Mac; from episode 9 on also Strix Halo) | the lesson | next mission
+Mission Report:  subtitle | FITS? | TOKENS/S | DONE IN (Spark, 5090, Mac; from episode 9 on also Strix Halo, from 11 on RTX Pro 6000) | the lesson | next mission
 Source of each number: file + field, measured or estimated
 Shot list: 1) ... 2) ... 3) ...
 ```
 
 Live lab: https://tacdelgineer.github.io/desk-space-program/01-liftoff/ . Preset parameters: `machine` (spark, rtx5090,
-mac, strix), `model` (g4, q36, q27, flash, max, or a size in billions for a dense model), `bits` (4, 8, 16), `prompt` (q, doc, code),
+mac, strix, pro6000), `model` (g4, q36, q27, flash, max, or a size in billions for a dense model), `bits` (4, 8, 16), `prompt` (q, doc, code),
 `crew` (1–64), `shot` (1–4), `speed` (1, 5), `record=1` (interface hidden, launches once the model has loaded).
 In record mode: keys 1–4 move the camera, Space launches again, M switches to the next machine (Spark, 5090, Mac,
-Strix Halo, round again), H brings the interface back.
+Strix Halo, RTX Pro 6000, round again), H brings the interface back.
 The public page shows the measured numbers once `labs/data/measured/spark.json` is pushed.
 
 **Measured and estimated.** The DGX Spark column is **measured** for the four downloaded models at 4-bit with the
@@ -45,13 +47,18 @@ single request ("est."). The Strix Halo column (episodes 9 on) is **reported**: 
 on a Ryzen AI Max+ 395 with 128 GB, `labs/data/reported/strix.json`, each with its link (Qwen3.8 27B, Qwen3.6 35B MoE and
 Flash-Next reading and writing, Gemma 4 E4B writing only; 4-bit, question and document, one request). Print "rep." for
 those; their quants differ a little from the Spark's and their prompts were 2,048 tokens long (the file says how each
-maps to the lab's prompts). The RTX 5090 and Mac Studio columns, 8- and 16-bit, the codebase prompt, Qwen3.8-Max and
-"GPU math used" are **estimated**: print "est.".
+maps to the lab's prompts). The RTX Pro 6000 column (episodes 11 on) has one reported run, Flash-Next with a
+22,695-token prompt, which stands for the codebase prompt (`labs/data/reported/pro6000.json`). Where a machine has a run
+for the same model at another prompt length, the lab scales it to the prompt you picked: print "est. from meas." or
+"est. from rep." for those (the report tool says which). The RTX 5090 and Mac Studio columns, 8- and 16-bit,
+Qwen3.8-Max and "GPU math used" are **estimated**: print "est.".
 
 **Sources, the same for every episode.** Machines: `labs/data/machines.json`, fields `memGB`, `reserveGB`, `bw`,
 `tflops` of `spark`, `rtx5090`, `mac`, all `"estimated"`; of `strix`, `"reported"` with a link (AMD's spec pages and
 a Strix Halo setup guide for the 120 GB the GPU may use on Linux) except `tflops`, `"estimated"` from AMD's compute-unit
-count and clock. Models: `labs/data/models.json`, fields `total`, `active`,
+count and clock; of `pro6000`, `"reported"` from NVIDIA's datasheet and its RTX Blackwell PRO architecture paper except
+`reserveGB`, `"estimated"` from the 97,887 MiB nvidia-smi shows. `tableOnHost` on the 5090 and the Pro 6000: a graphics
+card leaves a model's lookup table in the PC's memory, so only the rest must fit on the card. Models: `labs/data/models.json`, fields `total`, `active`,
 `table` and `arch` (from each model's config and checkpoint, `"config"`), and `bpp` of the precision (`"estimated"`).
 Spark measurements: `labs/data/measured/spark.json`, fields `tgTps` (writing), `ppTps` (reading), `weightsGB` (the real
 file). Prompt length: `labs/data/models.json` `prompts[].tokens` (`"chosen"`). Answer length 150 tokens:
@@ -131,3 +138,20 @@ Guess card options: Qwen3.8-Flash-Next, 177B parameters with its table. Which on
 Mission Report: M01 LIFTOFF   QWEN3.8-FLASH-NEXT, 4-BIT | FITS? YES / NO / YES / YES | TOKENS/S 24 (meas.) / NO / 104 (est.) / 21 (rep.) | DONE IN 6.8 s (meas.) / NO / 1.7 s (est.) / 7.9 s (rep.) | 128 GB of slow memory beats 32 GB of fast memory: a model has to fit before speed counts | NEXT: I gave my idle GPU 32 jobs
 Source of each number: the lists above. 101 GB = weights and table plus prompt memory at 4-bit (estimated), 120 GB free on the Strix Halo (`memGB` 128 minus `reserveGB` 8: the usual Linux setting lets its GPU map 120 GiB; out of the box it is about half, `gpuMemLinuxDefaultGB` 62.8, and the model would not fit) against 30.5 GB on the 5090. 177B = `total` 125.7B plus `table` 51.2B of flash. 21 tokens/s: 20.6, a published llama.cpp run of the UD-IQ4_XS file (93.7 GB; the Spark runs the 111 GB UD-Q4_K_XL at 24.2), 85% of the Spark.
 Shot list: 1) key 1 on the Strix Halo: arcs from the SSD fill the packages, teal weights across the front row, then the amber table in the back row, 101 of 120 GB. 2) Space, key 3: the small GPU block blazes for half a second, then a few cells flash per token, 21 tokens/s. 3) the 5090 link, key 2: its 16 chips fill in a blink and spill magenta. 4) back to the first link, key 1, for the loop.
+
+### Episode 11
+Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=pro6000&model=flash&bits=4&prompt=code&crew=1&shot=1&record=1
+  (the 5090, same model: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=rtx5090&model=flash&bits=4&prompt=code&crew=1&shot=2&record=1 )
+Guess card options: Flash-Next's file is 111 GB. The card holds 96 GB. It... A) won't load / B) crawls at 2 tokens/s / C) writes 60 tokens/s
+Mission Report: M01 LIFTOFF   QWEN3.8-FLASH-NEXT, 4-BIT, CODEBASE | FITS? YES / NO / YES / YES / YES | TOKENS/S 23 (est. from meas.) / NO / 103 (est.) / 20 (est. from rep.) / 60 (rep.) | DONE IN 57 s (est. from meas.) / NO / 32 s (est.) / 1 min 32 s (est. from rep.) / 15 s (rep.) | The 29.5 GB lookup table waits in the PC's memory; the card keeps the 81.8 GB every token reads | NEXT: same chip as a 5090, three times the room
+Source of each number: the lists above. The Pro 6000's run (`labs/data/reported/pro6000.json`, linked there): the Spark's own UD-Q4_K_XL file, 78,056 MiB on the card and 28,110 MiB in the PC's memory (111.3 GB together, 81.8 and 29.5 GB), writing 59.7 tokens/s, reading 2,559 tokens/s over a 22,695-token prompt, which stands for the 32,000-token codebase (reading 32,000 would be a little slower). It ran at a 450 W power limit of the card's 600 and with 8-bit prompt memory. 96 GB = `memGB` of pro6000, 94.5 GB free (`reserveGB` 1.5). The 5090 still needs 72.5 GB on its card with the table left in the PC (`tableOnHost`), against 30.5. The Spark's and the Strix Halo's codebase numbers are scaled from their 8,000-token runs. Speed against the Spark (real runs only): 59.7 against 22.92 tokens/s writing (the Spark's document run), 2.6x, with 6.6x the bandwidth (`bw` 1,792 against 273).
+Shot list: 1) key 1: the card loads over the PCIe slot, the 16 memory spots fill to 83 of 94.5 GB, all teal: no amber table cells on the card. 2) Space, key 3: 188 blocks blaze for 13 s reading the codebase (trim it), then a few cells flash per token, 60 tokens/s. 3) the 5090 link, key 2: 16 chips fill and spill magenta. 4) back to the first link, key 1, for the loop.
+
+### Episode 12
+Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=pro6000&model=q27&bits=4&prompt=q&crew=1&shot=2&record=1
+  then 16-bit: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=pro6000&model=q27&bits=16&prompt=q&crew=1&shot=2&record=1
+  (the 5090 at 16-bit, for the spill: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=rtx5090&model=q27&bits=16&prompt=q&crew=1&shot=2&record=1 )
+Guess card options: The RTX Pro 6000 and the RTX 5090 share one GPU chip. At 4-bit the Pro 6000 writes... A) 3x faster / B) just as fast / C) half as fast
+Mission Report: M01 LIFTOFF   QWEN3.8 27B, 16-BIT | FITS? YES / NO / YES / YES / YES | TOKENS/S 3.7 / NO / 11 / 3.5 / 24 (est.) | DONE IN 41 s / NO / 15 s / 44 s / 6.2 s (est.) | Same chip, same 1,792 GB/s: 85 tokens/s each at 4-bit, but only the Pro holds the 54 GB full-size model | NEXT: my AI box waits 99% of the time
+Source of each number: the lists above, all estimated but the specs. 4-bit, question: 85 tokens/s on both (est.), because `bw` is 1,792 GB/s on both (the Pro 6000's reported by NVIDIA). Same chip: GB202 with 188 SMs on the Pro 6000 (`gpuSMs`, NVIDIA's architecture paper) and 170 on the 5090. 16-bit: 53.8 GB of weights (`total` 26.9B x `bpp` 2.0) plus prompt memory, 54.0 GB, against 30.5 GB free on the 5090 and 94.5 on the Pro 6000. Three times the room: `memGB` 96 against 32.
+Shot list: 1) first link, key 2: the Pro 6000's memory, 15.5 of 94.5 GB, 85 tokens/s. 2) M twice (past the Spark to the 5090): the same 85 tokens/s on its 16 chips. 3) the 16-bit links, key 2 on each: the Pro 6000 fills 9 of its 16 spots, the 5090 fills all 16 and spills magenta. 4) key 1 on the Pro 6000 for the loop.

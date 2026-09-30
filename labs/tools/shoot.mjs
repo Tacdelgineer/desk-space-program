@@ -16,6 +16,7 @@
 //   SHOOT_SIZE=1080x1920  another final size, e.g. a 9:16 Short
 //   SHOOT_UI=1            keep the interface (panels, labels) in the picture
 //   SHOOT_PHASE=reading   halfway through reading the prompt instead (use a long prompt: ?prompt=doc)
+//   SHOOT_PHASE=midwrite  halfway through writing the answer (fast machines finish within the usual 3 s)
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -85,6 +86,7 @@ async function shoot(pagePath, outDir, shots) {
     await page.evaluate(([dt, n, phase]) => {
       __lab.launch();
       if (phase === 'reading') { for (let i = 0; __lab.sim.phase === 'reading' && __lab.sim.t < __lab.sim.plan.readS / 2 && i < 30000; i++) __step(1, dt); return; }
+      if (phase === 'midwrite') { for (let i = 0; (__lab.sim.phase === 'reading' || __lab.sim.tokens < 75) && i < 30000; i++) __step(1, dt); return; }
       for (let i = 0; __lab.sim.phase !== 'writing' && i < 3000; i++) __step(1, dt);
       __step(n, dt);
     }, [STEP_MS, WRITING_FRAMES, PHASE]);

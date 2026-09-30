@@ -1,8 +1,8 @@
 /* =========================================================
    MISSION 01, LIFTOFF: the choices, the words, and the simulation that
    goes load -> reading -> writing -> done. Ties the kit together.
-   Four machines (switcher), a model-size handle, a crew dial, and URL presets for filming:
-     ?machine=spark|rtx5090|mac|strix &model=q27 (a preset id) or model=45 (billions, dense)
+   Five machines (switcher), a model-size handle, a crew dial, and URL presets for filming:
+     ?machine=spark|rtx5090|mac|strix|pro6000 &model=q27 (a preset id) or model=45 (billions, dense)
      &bits=4|8|16 &prompt=q|doc|code &crew=1..64 &shot=1..4 &speed=1|5 &record=1
    record=1 hides the interface and launches as soon as the model has loaded.
    Live mode (section 6) switches on when live/bridge.mjs serves the page: a chat box that runs a real model
@@ -15,8 +15,8 @@
   const { ANSWER, pick, calc, sizedModel, fmtS, fmtT, fmtGB, pct, plain, archModel } = DSP.model;
   const fmtB = b => b >= 1000 ? (b / 1000).toFixed(1) + 'T' : (b < 10 ? (Math.round(b * 10) / 10) : Math.round(b)) + 'B';
 
-  DSP.model.loadData(['data-machines', 'data-models', 'data-measured', 'data-reported-strix']).then(([machinesFile, modelsFile, measuredFile, strixFile]) => {
-    DSP.model.setRuns(measuredFile, strixFile);
+  DSP.model.loadData(['data-machines', 'data-models', 'data-measured', 'data-reported-strix', 'data-reported-pro6000']).then(([machinesFile, modelsFile, ...runFiles]) => {
+    DSP.model.setRuns(...runFiles);
     start(machinesFile, modelsFile);
   }).catch(err => {
     console.error(err);
@@ -33,7 +33,8 @@
       spark: { short: 'DGX Spark', the: 'the Spark', sticker: 'Inside a DGX Spark, the model lives in the memory chips. To write each token, the whole model crosses the memory bus to the GPU. The GPU does its math in a flash, then waits for the next delivery.' },
       rtx5090: { short: 'RTX 5090', the: 'the 5090', sticker: 'Inside an RTX 5090, the model lives in 16 memory chips ringed around the GPU. Count the lanes: its bus is twice as wide as the Spark\'s, so tokens arrive fast. But only 32 GB fits.' },
       mac: { short: 'Mac Studio', the: 'the Mac', sticker: 'Inside a Mac Studio M3 Ultra, the memory sits on the chip package itself, one short hop from the GPU cores. Count the lanes: four times as many as the Spark\'s.' },
-      strix: { short: 'Strix Halo', the: 'the Strix Halo', sticker: 'Inside a Strix Halo mini PC (AMD Ryzen AI Max+ 395), the model sits in 8 memory packages around one big chip. Count the lanes: 8, like the Spark, so it writes about as fast. Its GPU has half the math, so it reads slower.' }
+      strix: { short: 'Strix Halo', the: 'the Strix Halo', sticker: 'Inside a Strix Halo mini PC (AMD Ryzen AI Max+ 395), the model sits in 8 memory packages around one big chip. Count the lanes: 8, like the Spark, so it writes about as fast. Its GPU has half the math, so it reads slower.' },
+      pro6000: { short: 'RTX Pro 6000', the: 'the Pro 6000', sticker: 'Inside an RTX Pro 6000, the 5090\'s GPU chip sits between two fin stacks, ringed by 32 memory chips, 16 on each side of the board. The same 16 lanes as the 5090, so it writes as fast, and three times the room.' }
     };
     const MACHINES = machinesFile.machines.map(plain).map(m => Object.assign(m, { short: WORDS[m.id].short }));
     const MODELS = modelsFile.models.map(archModel);
@@ -51,7 +52,7 @@
     const q = new URLSearchParams(location.search);
     const alias = (v, map) => map[String(v || '').toLowerCase()];
     const start0 = {
-      machine: alias(q.get('machine'), { spark: 'spark', dgx: 'spark', rtx5090: 'rtx5090', '5090': 'rtx5090', rtx: 'rtx5090', mac: 'mac', m3ultra: 'mac', studio: 'mac', strix: 'strix', strixhalo: 'strix', halo: 'strix', amd: 'strix', ryzen: 'strix', '395': 'strix' }) || 'spark',
+      machine: alias(q.get('machine'), { spark: 'spark', dgx: 'spark', rtx5090: 'rtx5090', '5090': 'rtx5090', rtx: 'rtx5090', mac: 'mac', m3ultra: 'mac', studio: 'mac', strix: 'strix', strixhalo: 'strix', halo: 'strix', amd: 'strix', ryzen: 'strix', '395': 'strix', pro6000: 'pro6000', rtxpro6000: 'pro6000', rtxpro: 'pro6000', pro: 'pro6000', '6000': 'pro6000' }) || 'spark',
       prec: alias(q.get('bits'), { 4: '4', 8: '8', 16: '16' }) || '4',
       prompt: alias(q.get('prompt'), { q: 'q', question: 'q', doc: 'doc', document: 'doc', code: 'code', codebase: 'code' }) || 'q',
       speed: alias(q.get('speed'), { 1: '1', 5: '5' }) || '1',
@@ -132,7 +133,8 @@
       let s = model.name + ' at ' + prec.id + '-bit takes <b' + (p.fits ? '' : ' class="over"') + '>' + fmtGB(p.weightsGB) + ' GB</b>, plus <b>' + fmtGB(p.kvTotal) + ' GB</b> of prompt memory for ' +
         (sel.crew > 1 ? sel.crew + ' requests, each with ' : '') + prompt.name + ' (' + prompt.tokens.toLocaleString('en-US') + ' tokens). ' + w.the[0].toUpperCase() + w.the.slice(1) + ' has <b>' + p.usable + ' GB</b> free.';
       if (model.moe) s += ' Mixture of experts: only ' + fmtB(model.active) + ' of its ' + fmtB(model.total) + ' parameters work on each token, so each token reads far less.';
-      if (model.table) s += ' Plus a ' + fmtB(model.table) + '-parameter lookup table (the amber cells): it takes <b>' + fmtGB(p.tableGB) + ' GB</b>, but each token reads only a few rows of it.';
+      if (model.table && p.hostTableGB) s += ' Plus a ' + fmtB(model.table) + '-parameter lookup table: <b>' + fmtGB(p.hostTableGB) + ' GB</b> that stays in the PC\'s own memory, since each token reads only a few rows of it.';
+      else if (model.table) s += ' Plus a ' + fmtB(model.table) + '-parameter lookup table (the amber cells): it takes <b>' + fmtGB(p.tableGB) + ' GB</b>, but each token reads only a few rows of it.';
       if (p.measured && p.measured.weightsGB != null) s += ' The ' + fmtGB(p.weightsGB) + ' GB is the real ' + p.measured.quant + ' file.';
       document.getElementById('payload-line').innerHTML = s;
       syncSize(); syncCrew();
@@ -296,7 +298,7 @@
     // Where the speeds on the big number come from, in words
     function runLine(p, w) {
       const r = p.measured;
-      if (!r) return 'Estimated for the ' + w.short + '.';
+      if (!r) return p.scaledFrom ? 'Estimated from the ' + p.scaledFrom.source + ' ' + (p.scaledFrom.promptTokens || p.scaledFrom.prompt).toLocaleString('en-US') + '-token run on the ' + w.short + '.' : 'Estimated for the ' + w.short + '.';
       if (r.source === 'measured') return 'Measured on the ' + w.short + ' (' + r.quant + ', llama.cpp).';
       return 'Reported for the ' + w.short + ' by ' + r.by + ' (' + r.quant + ', llama.cpp)' + (p.readSource === 'estimated' ? '; reading estimated.' : '.');
     }
@@ -312,7 +314,7 @@
       let st = '', cls = '';
       if (swap) { st = 'Switching to the ' + w.short; }
       else if (!p.fits && sim.load >= 1) { st = 'Doesn\'t fit in memory'; cls = 'bad'; }
-      else if (sim.phase === 'loading') { st = (CUR.id === 'rtx5090' ? 'Loading over PCIe ' : 'Loading from the SSD ') + Math.floor(sim.load * 100) + '%'; }
+      else if (sim.phase === 'loading') { st = (cur.loadingLabel === 'pcie' ? 'Loading over PCIe ' : 'Loading from the SSD ') + Math.floor(sim.load * 100) + '%'; }
       else if (sim.phase === 'ready') { st = 'Ready for launch'; cls = 'go'; }
       else if (sim.phase === 'reading') { st = 'Reading ' + (crew > 1 ? crew + ' prompts' : 'your prompt') + ', T-minus ' + fmtS(Math.max(0, p.readS - sim.t)); cls = 'hot'; }
       else if (sim.phase === 'writing') { st = sim.tokens < 3 ? 'Liftoff: first token' : 'Writing, ' + Math.floor(sim.tokens) + ' of ' + ANSWER + ' tokens'; cls = 'go'; }
@@ -529,7 +531,9 @@
       li.textContent = 'Measured speeds replace the estimates where they exist: the DGX Spark running ' + names.join(', ') + ' with llama.cpp\'s llama-server, ' +
         'the question (300 tokens) and document (8,000 tokens) prompts, 150 tokens out, one request, the middle of three runs (' + runs.map(r => r.date).sort().pop() + (clk ? ', GPU clock at most ' + clk.toLocaleString('en-US') + ' MHz' : '') + '). ' +
         'Reported speeds stand in for the Strix Halo: someone else\'s published llama.cpp runs on a Ryzen AI Max+ 395 with 128 GB (' + reportedNames('strix') + '; the sources are linked in data/reported/strix.json). ' +
-        'Everything else is estimated: the RTX 5090 and the Mac Studio, 8- and 16-bit, the codebase prompt, crews of two or more, Qwen3.8-Max, and the GPU math used.';
+        'The RTX Pro 6000 has one: ' + reportedNames('pro6000') + ' with a 22,695-token prompt, which stands for the codebase prompt (data/reported/pro6000.json). ' +
+        'Where a machine has a run for the same model at another prompt length, or for one request when a crew runs, that run sets the scale for the estimate. ' +
+        'Everything else is estimated: the RTX 5090 and the Mac Studio, 8- and 16-bit, Qwen3.8-Max, and the GPU math used.';
     }
     function reportedNames(id) {
       const f = DSP.model.measuredFor(id), runs = (f && f.runs) || [];

@@ -25,7 +25,8 @@ Everything below was learned the hard way. Read it before touching the code.
 - **Machines (switcher, M):** DGX Spark, RTX 5090, Mac Studio M3 Ultra, AMD Strix Halo (Ryzen AI
   Max+ 395, 128 GB, AMD's own 150 x 150 mm mini PC: the Spark's rival with about the same memory
   speed and half the GPU math, drawn as a GPU block half the size; graphite case, hex back wall,
-  cooler lifted straight up).
+  cooler lifted straight up), RTX Pro 6000 (96 GB, the 5090's chip with 188 of 192 SMs, the same
+  1,792 GB/s; a double flow-through card on a gunmetal frame, 32 memory chips, 16 under the board).
 - **Keys:** Space launch, 1–4 camera shots, M next machine, C orbit, H hide UI, F fullscreen.
 
 ## Stack and why
@@ -90,14 +91,19 @@ Machines: Spark 128 GB, reserve 8, 273 GB/s, 125 TFLOPS placeholder. RTX 5090 32
 1.5, 1,792 GB/s, 210 placeholder. Mac Studio M3 Ultra 256 GB config (the one the creator owns;
 it was 96 GB before Session A), 819 GB/s, 28 placeholder. Strix Halo 128 GB, reserve 8 (Linux
 lets its GPU map about half until `ttm.pages_limit` raises it to 120 GiB), 256 GB/s, 59.4 TFLOPS
-estimated from 40 CUs at 2,900 MHz. The numbers live in `labs/data/machines.json` and
-`models.json`: the first three machines `"estimated"`, the Strix Halo `"reported"` with links.
+estimated from 40 CUs at 2,900 MHz. RTX Pro 6000 96 GB, reserve 1.5, 1,792 GB/s, 503.8 TFLOPS (NVIDIA's
+dense 16-bit with 32-bit accumulation; GeForce cards do that at half rate, hence the 5090's 210). The numbers
+live in `labs/data/machines.json` and `models.json`: the first three machines `"estimated"`, the Strix Halo
+and the RTX Pro 6000 `"reported"` with links. A graphics card (`tableOnHost`) leaves a model's lookup table in
+the PC's memory, as llama.cpp does, so only the rest has to fit on the card.
 
 Three kinds of number: **measured** on the creator's Spark (`labs/data/measured/`), **reported** by
 someone else with a link (`labs/data/reported/`: spec sheets, published llama.cpp runs), **estimated**
 by the formulas above. A reported run stands in for the estimate like a measured one; the Strix
 Halo's come from local-llm-benchmarks.dev (llama-server, 2,048-token prompts at depth 0 and 8,192)
-and, for Gemma 4 E4B's writing, huppiflupp/strix-halo-llm-speeds.
+and, for Gemma 4 E4B's writing, huppiflupp/strix-halo-llm-speeds; the Pro 6000's single run (Flash-Next)
+from a post on the model's Hugging Face page. Where a machine has a run for the same model and compression
+at another prompt length (or one request when a crew runs), that run scales the estimate ("est. from").
 
 The lineup since Session C: Gemma 4 E4B, Qwen3.6 35B-A3B, Qwen3.8 27B, Qwen3.8-Flash-Next (125.7B plus a
 51.2B n-gram table), Qwen3.8-Max (2.4T, estimate only). The Spark is measured by `live/` (llama.cpp
@@ -126,9 +132,9 @@ labs/
   machines/spark.js    layout: where each part sits, and animate()
   machines/rtx5090.js  (Session B)
   machines/m3ultra.js  (Session B)
-  machines/strixhalo.js  (Session D)
+  machines/strixhalo.js, machines/rtxpro6000.js  (Session D)
   data/machines.json   specs with a measured/reported/estimated tag per number
-  data/measured/, data/reported/   real runs: the Spark's, and published ones for the Strix Halo
+  data/measured/, data/reported/   real runs: the Spark's, and published ones for the Strix Halo and the Pro 6000
   data/models.json
   missions/01-liftoff/index.html + mission.js   pulls the pieces together
 dist/                  (repo root) build output, one file per mission plus the hub page
@@ -171,6 +177,6 @@ Not now: drag-to-load crates, pulling the cooler off by hand, sound, share links
 - **Measurements** (`llama-bench`) only happen on the DGX Spark, in a local session.
 - **The Shorts pack** is described in `docs/shorts-template.md`. Every episode ends on a Mission
   Report with three columns (DGX Spark, RTX 5090, Mac Studio; a fourth, Strix Halo, from
-  episode 9 on) and rows FITS?, TOKENS/S, DONE IN. Those numbers must come from the data files, never typed by hand.
+  episode 9 on, a fifth, RTX Pro 6000, from 11 on) and rows FITS?, TOKENS/S, DONE IN. Those numbers must come from the data files, never typed by hand.
 - **`EPISODES.md`** is the list of Shorts. Each one has a preset link that opens the lab in the
   exact state to film. Keep it in step with the missions.

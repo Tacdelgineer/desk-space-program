@@ -1,0 +1,10 @@
+{
+  "about": "Published llama.cpp runs for the NVIDIA RTX PRO 6000 Blackwell Workstation Edition (96 GB): someone else's machine and benchmark, never run here. calc() uses a run like a measured one for the same model, compression and prompt, and scales the estimate for the other prompt sizes and crews from it (tagged 'est. from rep.'). Picked by the same rules as the Strix Halo's (llama.cpp, no speculative decoding, the lab's model and quant), which left one run: the Spark's own Flash-Next file on this card, posted on the model's Hugging Face page. Its prompt was 22,695 tokens, so it stands for the lab's codebase prompt (32,000 tokens; reading 32,000 would be a little slower). The card was power-limited to 450 W of its 600 (the poster: it drew about 300 W while writing, so writing was not held back; reading may be a little), the prompt memory was 8-bit (q8_0) and the lookup table stayed in the PC's memory (--override-tensor per_layer_token_embd.weight=CPU): 78,056 MiB of model on the card, 28,110 MiB in the PC. Other published runs on this card are for other models (lhl's llm-tracker: Qwen3 30B-A3B Q4_K_M writes 251.6 tokens/s, Llama 3.3 70B Q4_K_M 34.1) or other setups (Jarvislabs, Server Edition with 11% slower memory, Q8_0: Qwen3.6 35B-A3B writes 193.4 tokens/s), so they are notes, not runs.",
+  "machine": "pro6000",
+  "source": "reported",
+  "runs": [
+    {"model": "flash", "name": "Qwen3.8-Flash-Next", "bits": "4", "quant": "UD-Q4_K_XL", "prompt": 32000, "promptTokens": 22695, "ppTps": 2559.0, "tgTps": 59.7, "weightsGB": 111.3, "tableGB": 29.5,
+      "engine": "llama.cpp llama-server", "point": "one 22,695-token prompt, then 3,992 tokens written; 450 W power limit, 8-bit prompt memory, the table in the PC's memory", "date": "2026-08-27",
+      "by": "WonderRico on the model's Hugging Face page", "link": "https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF/discussions/3#6a90522fc96d5ffef05d59ec"}
+  ]
+}

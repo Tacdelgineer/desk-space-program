@@ -142,14 +142,16 @@
     top.rotation.x = -Math.PI / 2; top.position.set(x || 0, Y0 + 0.002, z || 0); top.receiveShadow = true; add(top);
   }
 
-  /* ---------- a grid of glowing blocks on a die (GPU cores, CPU cores). Returns the InstancedMesh ---------- */
-  function tiles(cx, cz, cols, rows, tw, td, pitchX, pitchZ, y, base) {
-    const im = new T.InstancedMesh(new T.BoxGeometry(tw, 0.012, td), new T.MeshBasicMaterial({ color: 0xffffff }), cols * rows);
-    let i = 0;
-    for (let a = 0; a < cols; a++) for (let b = 0; b < rows; b++) {
+  /* ---------- a grid of glowing blocks on a die (GPU cores, CPU cores). skip(col, row) leaves a block out (a core
+     that is switched off). Returns the InstancedMesh ---------- */
+  function tiles(cx, cz, cols, rows, tw, td, pitchX, pitchZ, y, base, skip) {
+    const keep = [];
+    for (let a = 0; a < cols; a++) for (let b = 0; b < rows; b++) if (!(skip && skip(a, b))) keep.push([a, b]);
+    const im = new T.InstancedMesh(new T.BoxGeometry(tw, 0.012, td), new T.MeshBasicMaterial({ color: 0xffffff }), keep.length);
+    keep.forEach(([a, b], i) => {
       const o = new T.Object3D(); o.position.set(cx - (cols - 1) / 2 * pitchX + a * pitchX, y, cz - (rows - 1) / 2 * pitchZ + b * pitchZ); o.updateMatrix();
-      im.setMatrixAt(i, o.matrix); im.setColorAt(i, base || new T.Color(0.012, 0.013, 0.02)); i++;
-    }
+      im.setMatrixAt(i, o.matrix); im.setColorAt(i, base || new T.Color(0.012, 0.013, 0.02));
+    });
     add(im); return im;
   }
 
