@@ -135,7 +135,7 @@
       if (model.moe) s += ' Mixture of experts: only ' + fmtB(model.active) + ' of its ' + fmtB(model.total) + ' parameters work on each token, so each token reads far less.';
       if (model.table && p.hostTableGB) s += ' Plus a ' + fmtB(model.table) + '-parameter lookup table: <b>' + fmtGB(p.hostTableGB) + ' GB</b> that stays in the PC\'s own memory, since each token reads only a few rows of it.';
       else if (model.table) s += ' Plus a ' + fmtB(model.table) + '-parameter lookup table (the amber cells): it takes <b>' + fmtGB(p.tableGB) + ' GB</b>, but each token reads only a few rows of it.';
-      if (p.measured && p.measured.weightsGB != null) s += ' The ' + fmtGB(p.weightsGB) + ' GB is the real ' + p.measured.quant + ' file.';
+      if (p.measured && p.measured.weightsGB != null) s += p.hostTableGB ? ' Together that is the real ' + p.measured.quant + ' file, ' + fmtGB(p.measured.weightsGB) + ' GB.' : ' The ' + fmtGB(p.weightsGB) + ' GB is the real ' + p.measured.quant + ' file.';
       document.getElementById('payload-line').innerHTML = s;
       syncSize(); syncCrew();
       setTerm('');
