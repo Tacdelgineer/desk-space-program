@@ -1,11 +1,31 @@
 {
-  "about": "Every number is {value, source}. total and active are billions of parameters, kvMB is prompt memory per token in MB, bpp is bytes per parameter. HANDOFF 'Speed model' says how they are used. sizeHandle: the model-size handle's range, and how a sized model's prompt memory per token is scaled from the 8B preset (kvMB = kvMBat8B x (size / 8) ^ kvExponent). prompts: the three prompt sizes the lab offers, in tokens (a choice, not a measurement).",
+  "about": "Every number is {value, source}. total and active are billions of parameters: total is every text weight the model keeps in memory apart from its lookup table (vision, audio and the extra MTP layer are left out, the local server doesn't load them); active is what each token reads (shared layers, the output head and the routed share of the experts; the input embedding is only looked up, so it isn't counted, which is why Qwen's own names come out a little higher: A3B, A95B). table is a lookup table that sits in memory but is barely read per token (Gemma's per-layer embeddings, Flash-Next's n-gram table). arch comes from each model's config.json on Hugging Face and gives the prompt memory: only kvLayers keep a cache that grows with the prompt (kvHeads x headDim for keys and values, 16-bit); sliding layers keep at most window tokens; linear layers keep a fixed state instead; Flash-Next's attention reads at most attnBudget earlier tokens and keeps a small indexer key per token. kit/model.js turns arch into MB per token and a fixed MB per request. The parameter counts were added up from the tensor shapes in each checkpoint's safetensors headers (Qwen3.8-Max from its config, with the same formulas checked against Qwen3.6 and Qwen3.8 27B). gguf is the 4-bit file the Spark benchmark runs (live/, llama.cpp llama-server); cpuTensors stay in CPU memory, mapped from the file; with lazyTable their rows are read from the file on demand instead of being kept resident (Flash-Next: the 28.8 GB n-gram table doesn't fit next to the 78 GB of weights otherwise). sizeHandle: the model-size handle's range, and how a sized dense model's prompt memory per token is scaled (kvMB = kvMBat8B x (size / 8) ^ kvExponent). prompts: the three prompt sizes the lab offers, in tokens (a choice, not a measurement).",
   "models": [
-    {"id": "l8", "short": "Llama 8B", "name": "Llama 3.1 8B", "total": {"value": 8.0, "source": "estimated"}, "active": {"value": 8.0, "source": "estimated"}, "kvMB": {"value": 0.125, "source": "estimated"}, "moe": false},
-    {"id": "q32", "short": "Qwen 32B", "name": "Qwen3 32B", "total": {"value": 32.8, "source": "estimated"}, "active": {"value": 32.8, "source": "estimated"}, "kvMB": {"value": 0.25, "source": "estimated"}, "moe": false},
-    {"id": "q30", "short": "Qwen 30B MoE", "name": "Qwen3 30B MoE", "total": {"value": 30.5, "source": "estimated"}, "active": {"value": 3.3, "source": "estimated"}, "kvMB": {"value": 0.094, "source": "estimated"}, "moe": true},
-    {"id": "l70", "short": "Llama 70B", "name": "Llama 3.3 70B", "total": {"value": 70.6, "source": "estimated"}, "active": {"value": 70.6, "source": "estimated"}, "kvMB": {"value": 0.3125, "source": "estimated"}, "moe": false},
-    {"id": "oss", "short": "gpt-oss 120B", "name": "gpt-oss 120B MoE", "total": {"value": 117, "source": "estimated"}, "active": {"value": 5.1, "source": "estimated"}, "kvMB": {"value": 0.07, "source": "estimated"}, "moe": true}
+    {"id": "g4", "short": "Gemma 4 E4B", "name": "Gemma 4 E4B", "hf": "google/gemma-4-E4B-it",
+      "total": {"value": 4.699, "source": "config"}, "active": {"value": 4.699, "source": "config"}, "table": {"value": 2.819, "source": "config"}, "moe": false,
+      "arch": {"source": "config", "layers": 42, "kvLayers": 4, "kvHeads": 2, "headDim": 512, "sharedKvLayers": 18,
+        "windowLayers": 20, "windowHeads": 2, "windowHeadDim": 256, "window": 512},
+      "gguf": {"repo": "unsloth/gemma-4-E4B-it-GGUF", "files": ["gemma-4-E4B-it-Q4_K_M.gguf"], "quant": "Q4_K_M", "bits": "4", "cpuTensors": "per_layer_token_embd"}},
+    {"id": "q36", "short": "Qwen3.6 35B MoE", "name": "Qwen3.6 35B-A3B", "hf": "Qwen/Qwen3.6-35B-A3B",
+      "total": {"value": 34.661, "source": "config"}, "active": {"value": 2.946, "source": "config"}, "moe": true,
+      "arch": {"source": "config", "layers": 40, "kvLayers": 10, "kvHeads": 2, "headDim": 256,
+        "linearLayers": 30, "linearKeyHeads": 16, "linearValueHeads": 32, "linearKeyDim": 128, "linearValueDim": 128, "convKernel": 4, "experts": 256, "expertsPerToken": 8},
+      "gguf": {"repo": "unsloth/Qwen3.6-35B-A3B-GGUF", "files": ["Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"], "quant": "UD-Q4_K_M", "bits": "4"}},
+    {"id": "q27", "short": "Qwen3.8 27B", "name": "Qwen3.8 27B", "hf": "Qwen/Qwen3.8-27B",
+      "total": {"value": 26.896, "source": "config"}, "active": {"value": 25.625, "source": "config"}, "moe": false,
+      "arch": {"source": "config", "layers": 64, "kvLayers": 16, "kvHeads": 4, "headDim": 256,
+        "linearLayers": 48, "linearKeyHeads": 16, "linearValueHeads": 48, "linearKeyDim": 128, "linearValueDim": 128, "convKernel": 4},
+      "gguf": {"repo": "unsloth/Qwen3.8-27B-GGUF", "files": ["Qwen3.8-27B-UD-Q4_K_M.gguf"], "quant": "UD-Q4_K_M", "bits": "4"}},
+    {"id": "flash", "short": "Flash-Next", "name": "Qwen3.8-Flash-Next", "hf": "Qwen/Qwen3.8-Flash-Next",
+      "total": {"value": 125.744, "source": "config"}, "active": {"value": 6.672, "source": "config"}, "table": {"value": 51.2, "source": "config"}, "moe": true,
+      "arch": {"source": "config", "layers": 48, "kvLayers": 12, "kvHeads": 2, "headDim": 256, "attnBudget": 2048, "indexerKeyDim": 128, "indexerCompress": 4,
+        "linearLayers": 36, "linearKeyHeads": 16, "linearValueHeads": 48, "linearKeyDim": 128, "linearValueDim": 128, "convKernel": 4, "experts": 512, "expertsPerToken": 10,
+        "ngramSize": 3, "ngramVocab": 20000000, "ngramDim": 2560},
+      "gguf": {"repo": "unsloth/Qwen3.8-Flash-Next-GGUF", "files": ["UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf", "UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00002-of-00004.gguf", "UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00003-of-00004.gguf", "UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00004-of-00004.gguf"], "quant": "UD-Q4_K_XL", "bits": "4", "cpuTensors": "per_layer_token_embd", "lazyTable": true}},
+    {"id": "max", "short": "Qwen3.8-Max", "name": "Qwen3.8-Max", "hf": "Qwen/Qwen3.8-2.4T-A95B",
+      "total": {"value": 2419.805, "source": "config"}, "active": {"value": 93.254, "source": "config"}, "moe": true,
+      "arch": {"source": "config", "layers": 92, "kvLayers": 23, "kvHeads": 4, "headDim": 256,
+        "linearLayers": 69, "linearKeyHeads": 16, "linearValueHeads": 128, "linearKeyDim": 128, "linearValueDim": 128, "convKernel": 4, "experts": 512, "expertsPerToken": 10}}
   ],
   "precisions": [
     {"id": "16", "short": "16-bit", "name": "16-bit, full size", "bpp": {"value": 2.0, "source": "estimated"}},
@@ -17,5 +37,5 @@
     {"id": "doc", "tokens": {"value": 8000, "source": "chosen"}},
     {"id": "code", "tokens": {"value": 32000, "source": "chosen"}}
   ],
-  "sizeHandle": {"minB": {"value": 1, "source": "estimated"}, "maxB": {"value": 200, "source": "estimated"}, "kvMBat8B": {"value": 0.125, "source": "estimated"}, "kvExponent": {"value": 0.43, "source": "estimated"}}
+  "sizeHandle": {"minB": {"value": 1, "source": "estimated"}, "maxB": {"value": 3000, "source": "estimated"}, "kvMBat8B": {"value": 0.125, "source": "estimated"}, "kvExponent": {"value": 0.43, "source": "estimated"}}
 }

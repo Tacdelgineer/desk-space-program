@@ -5,7 +5,7 @@
 //   node labs/tools/shoot.mjs --compare <dirA> <dirB> [diffDir]
 //
 // Every shot is 1920x1080, UI hidden (H), a few seconds into the writing phase. The page's defaults are
-// Llama 70B at 4-bit on the DGX Spark; a preset query (?machine=mac&crew=16, see the mission's URL
+// Qwen3.8 27B at 4-bit on the DGX Spark; a preset query (?machine=mac&crew=16, see the mission's URL
 // parameters) changes that. Math.random is seeded and time is virtual (requestAnimationFrame and
 // performance.now are stepped by hand), so the same page renders the same pixels on every run, grain included.
 //

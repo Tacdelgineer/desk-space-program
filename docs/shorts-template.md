@@ -45,9 +45,9 @@ FILMING
   Music: your own track at about -18 dB.
 
 FIRST EPISODES
-  M01  "My AI box waits 99% of the time"        Llama 70B on the Spark, GPU close-up
-  M01  "The fastest gaming GPU can't run this"  70B doesn't fit the 5090
-  M01  "Same size model, [N]x faster"           Qwen 32B vs Qwen 30B MoE
+  M01  "My AI box waits 99% of the time"        Qwen3.8 27B on the Spark, GPU close-up
+  M01  "The fastest gaming GPU can't run this"  Qwen3.8-Flash-Next doesn't fit the 5090
+  M01  "The bigger model writes [N]x faster"    Qwen3.8 27B vs Qwen3.6 35B MoE
   M01  "A long document flips the winner"       Document prompt, Spark vs Mac
   M03  "I gave my idle GPU 32 jobs"             crew dial (after Session B)
 

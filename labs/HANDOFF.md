@@ -66,13 +66,16 @@ Everything below was learned the hard way. Read it before touching the code.
     local copies (`npm pack three@0.147.0`, `@fontsource/anton`, `@fontsource/archivo-narrow`,
     `@fontsource/ibm-plex-mono`). With a real GPU it's far faster.
 
-## Speed model (estimates, placeholders until measured)
+## Speed model (estimates; measured Spark runs replace them where they exist)
 
 ```
-weightsGB  = totalParams(B) * bytesPerParam      (16-bit 2.0, 8-bit 1.06, 4-bit 0.57)
-kvGB       = kvMBperToken * (promptTokens + answerTokens) / 1024
+weightsGB  = (totalParams + tableParams)(B) * bytesPerParam      (16-bit 2.0, 8-bit 1.06, 4-bit 0.57)
+kvGB       = (kvMBperToken * (promptTokens + answerTokens) + stateMB) / 1024
+             kvMBperToken and stateMB come from each model's arch (kit/model.js archModel): only layers with a
+             growing cache count per token; sliding windows and linear-attention state are a fixed stateMB
 fits       = weightsGB + kvGB <= memGB - reserveGB
 writeTps   = eff * bandwidthGBs / (activeParams * bytesPerParam + avgKvGB)   eff 0.7 dense, 0.5 MoE
+             (a lookup table takes memory but isn't read per token; Flash-Next attends to at most 2,048 tokens)
 readTps    = 0.5 * TFLOPS * 1e12 / (2 * activeParams * 1e9)
 busyWrite  = (2 * activeParams * 1e9 / (0.5 * TFLOPS * 1e12)) * writeTps
 answer     = 150 tokens; prompts 300 / 8,000 / 32,000 tokens
@@ -83,8 +86,13 @@ Machines: Spark 128 GB, reserve 8, 273 GB/s, 125 TFLOPS placeholder. RTX 5090 32
 it was 96 GB before Session A), 819 GB/s, 28 placeholder. The numbers now live in
 `labs/data/machines.json` and `models.json`, each tagged `"source": "estimated"`.
 
-`llama-bench` (llama.cpp) reports exactly the two speeds the lab uses: `pp` = reading the
-prompt, `tg` = writing. Measured numbers replace the estimates and get tagged `measured`.
+The lineup since Session C: Gemma 4 E4B, Qwen3.6 35B-A3B, Qwen3.8 27B, Qwen3.8-Flash-Next (125.7B plus a
+51.2B n-gram table), Qwen3.8-Max (2.4T, estimate only). The Spark is measured by `live/` (llama.cpp
+llama-server, 4-bit GGUFs from Unsloth): reading speed (prompt tokens/s) and writing speed (tokens/s) for the
+300- and 8,000-token prompts go into `labs/data/measured/spark.json`, and `calc()` uses them for the Spark at
+4-bit, crew 1, tagged `measured`. `llama-bench` gives higher numbers for small models (no server in the way).
+Two things that change the numbers on this Spark: the GPU clock is capped (about 2,000 MHz of 3,003, recorded in
+each run), and a lab page open on the Spark's own screen draws on the same GPU (Gemma 61 -> 44 tokens/s).
 
 ## Known issues to fix
 
@@ -133,7 +141,7 @@ Rule: the split must render the same as today before any new feature goes in. Ch
 4. **Labels on side rails.**
 5. **Measured Spark numbers** from `llama-bench`.
 
-Not now: drag-to-load crates, pulling the cooler off by hand, sound, live data, share links.
+Not now: drag-to-load crates, pulling the cooler off by hand, sound, share links. Live data is built (Session C, `live/`).
 
 ## Home, cloud sessions and the Shorts
 

@@ -12,23 +12,34 @@
   //   memory traffic = the weights (MoE: the experts the crew needs, at most all of them) + crew x prompt memory
   //   math           = crew x 2 x active parameters
   // A step takes whichever is slower, so each request stays nearly as fast until the math catches up.
+  // A table (Gemma's per-layer embeddings, Flash-Next's n-gram table) takes memory but is barely read per token.
+  // Prompt memory: kvMB per prompt token plus stateMB per request (sliding windows, linear-attention state).
+  // A measured run (data/measured/<machine>.json, same model, compression and prompt, one request) replaces the
+  // estimated speeds and the weights' size; everything else stays estimated. p.measured says which.
+  // With a crew, the single-request run still sets the scale: the estimated memory time per step is stretched so
+  // that crew 1 matches the measurement, and reading uses the measured reading speed (p.scaledFrom, still estimated).
   function calc(m, model, prec, prompt, crew) {
     const n = crew || 1;
-    const weightsGB = model.total * prec.bpp;
-    const kvGB = model.kvMB * (prompt.tokens + ANSWER) / 1024;            // one request
+    const run = measuredRun(m, model, prec, prompt, n), base = run || (n > 1 ? measuredRun(m, model, prec, prompt, 1) : null);
+    const tableGB = base ? base.tableGB : (model.table || 0) * prec.bpp;
+    const weightsGB = base ? base.weightsGB : (model.total + (model.table || 0)) * prec.bpp;
+    const stateMB = model.stateMB || 0, seen = t => model.attnBudget ? Math.min(model.attnBudget, t) : t;
+    const kvGB = (model.kvMB * (prompt.tokens + ANSWER) + stateMB) / 1024;  // one request
     const kvTotal = n * kvGB;
     const needGB = weightsGB + kvTotal, usable = m.memGB - m.reserveGB, fits = needGB <= usable;
     const activeGB = model.active * prec.bpp;
-    const avgKv = model.kvMB * (prompt.tokens + ANSWER / 2) / 1024;
+    const avgKv = (model.kvMB * seen(prompt.tokens + ANSWER / 2) + stateMB) / 1024;
     const eff = model.moe ? 0.5 : 0.7;
     const flops = 0.5 * m.tflops * 1e12;
-    const stepMem = n => ((model.moe ? Math.min(weightsGB, activeGB * n) : activeGB) + n * avgKv) / (eff * m.bw);
+    const memEst = n => ((model.moe ? Math.min(weightsGB - tableGB, activeGB * n) : activeGB) + n * avgKv) / (eff * m.bw);
     const stepMath = n => n * 2 * model.active * 1e9 / flops;
-    const tMem = stepMem(n), tMath = stepMath(n), step = Math.max(tMem, tMath);
+    const kMem = base ? Math.max(1 / base.tgTps - stepMath(1), 1e-6) / memEst(1) : 1;
+    const stepMem = n => memEst(n) * kMem;
+    const tMem = stepMem(n), tMath = stepMath(n), step = run ? 1 / run.tgTps : Math.max(tMem, tMath);
     const writeTps = 1 / step, totalTps = n / step;                       // per request, all requests
-    const readTps = flops / (2 * model.active * 1e9);
+    const readTps = base ? base.ppTps : flops / (2 * model.active * 1e9);
     const readS = n * prompt.tokens / readTps, writeS = ANSWER / writeTps;
-    const busyWrite = Math.min(1, tMath / step), busWrite = tMem / step, gpuMax = tMath >= tMem;
+    const busyWrite = Math.min(1, tMath / step), busWrite = Math.min(1, tMem / step), gpuMax = tMath >= tMem;
     const chunk = 512, readBytes = model.moe ? Math.min(weightsGB, activeGB * 8) : weightsGB;
     const busRead = Math.min(1, (readBytes / m.bw) / (2 * model.active * 1e9 * chunk / flops));
     // where the crew dial runs out: the first crew size where the math takes longer than the memory, and the
@@ -36,7 +47,7 @@
     let crewGpu = Infinity;
     for (let k = 1; k <= 4096; k++) if (stepMath(k) >= stepMem(k)) { crewGpu = k; break; }
     const crewMem = Math.max(0, Math.floor((usable - weightsGB) / kvGB));
-    return { crew: n, weightsGB, kvGB, kvTotal, needGB, usable, fits, writeTps, totalTps, readTps, readS, writeS, totalS: readS + writeS, busyWrite, busWrite, gpuMax, busRead, crewGpu, crewMem };
+    return { crew: n, measured: run || null, scaledFrom: run ? null : base, weightsGB, tableGB, kvGB, kvTotal, needGB, usable, fits, writeTps, totalTps, readTps, readS, writeS, totalS: readS + writeS, busyWrite, busWrite, gpuMax, busRead, crewGpu, crewMem };
   }
 
   // A model picked with the size handle: dense, sizeB billion parameters. Its prompt memory per token is
@@ -44,7 +55,7 @@
   function sizedModel(sizeB, handle) {
     const kvMB = handle.kvMBat8B * Math.pow(sizeB / 8, handle.kvExponent);
     const b = sizeB < 10 ? Math.round(sizeB * 10) / 10 : Math.round(sizeB);
-    return { id: 'size', short: b + 'B', name: 'A ' + b + 'B dense model', total: b, active: b, kvMB, moe: false };
+    return { id: 'size', short: b + 'B', name: 'A ' + b + 'B dense model', total: b, active: b, table: 0, kvMB, stateMB: 0, moe: false };
   }
   const fmtS = s => s < 60 ? (s < 10 ? s.toFixed(1) : s.toFixed(0)) + ' s' : Math.floor(s / 60) + ' min ' + Math.round(s % 60) + ' s';
   const fmtT = v => v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString('en-US');
@@ -64,6 +75,35 @@
     return out;
   }
 
+  // A model from data/models.json: plain numbers, plus its prompt memory worked out from arch (the model's config).
+  //   kvMB    per prompt token: keys and values, 16-bit, on the layers that keep a growing cache (+ Flash-Next's indexer keys)
+  //   stateMB per request, fixed: sliding-window layers at a full window, linear-attention state (32-bit) and conv buffer
+  const MB = 1024 * 1024;
+  function archModel(rec) {
+    const out = plain(rec), a = rec.arch || {};
+    out.table = out.table || 0;
+    let perTok = 2 * (a.kvLayers || 0) * (a.kvHeads || 0) * (a.headDim || 0) * 2;
+    if (a.indexerKeyDim) perTok += (a.kvLayers || 0) * a.indexerKeyDim * 2 / (a.indexerCompress || 1);
+    let fixed = 2 * (a.windowLayers || 0) * (a.windowHeads || 0) * (a.windowHeadDim || 0) * 2 * (a.window || 0);
+    if (a.linearLayers) {
+      const conv = 2 * a.linearKeyHeads * a.linearKeyDim + a.linearValueHeads * a.linearValueDim;
+      fixed += a.linearLayers * (a.linearValueHeads * a.linearKeyDim * a.linearValueDim + (a.convKernel - 1) * conv) * 4;
+    }
+    out.kvMB = perTok / MB; out.stateMB = fixed / MB; out.attnBudget = a.attnBudget || 0;
+    out.sources.kvMB = out.sources.stateMB = a.source || 'config';
+    return out;
+  }
+
+  // Measured runs, one file per machine: { machine, runs: [{ model, bits, prompt (tokens), ppTps, tgTps, weightsGB, tableGB, ... }] }
+  let measured = {};
+  function setMeasured(file) { measured = {}; if (file && file.machine) measured[file.machine] = file; }
+  function measuredRun(m, model, prec, prompt, crew) {
+    const f = measured[m.id];
+    if (!f || crew !== 1 || !model) return null;
+    return (f.runs || []).find(r => r.model === model.id && r.bits === prec.id && r.prompt === prompt.tokens) || null;
+  }
+  const measuredFor = machineId => measured[machineId] || null;
+
   // Each JSON script element in a page (type application/json, with an id and a src) stands for one data file.
   // The built page has the JSON inline. A source page has only src, so it is fetched (serve labs/ over http).
   function loadData(ids) {
@@ -74,5 +114,5 @@
     }));
   }
 
-  DSP.model = { ANSWER, pick, calc, sizedModel, fmtS, fmtT, fmtGB, pct, plain, loadData };
+  DSP.model = { ANSWER, pick, calc, sizedModel, fmtS, fmtT, fmtGB, pct, plain, archModel, setMeasured, measuredFor, loadData };
 })(window.DSP = window.DSP || {});

@@ -7,19 +7,20 @@ Paths below are inside `labs/` unless they start with `.github`.
 ## Files
 
 **kit/** (shared by every mission)
-- `kit/model.js`: speed math (`calc`, including the crew and where the crew dial runs out), sized models for the size handle, number formatting, reading the data files. Edit to change how speed is estimated or to prefer measured numbers.
+- `kit/model.js`: speed math (`calc`, including the crew and where the crew dial runs out), prompt memory from each model's `arch` (`archModel`), measured runs (`setMeasured`: a matching run replaces the estimated speeds and weights), sized models for the size handle, number formatting, reading the data files. Edit to change how speed is estimated.
 - `kit/engine.js`: renderer, lights, post chain, floor, camera shots (a machine can bring its own 2-4), keys, labels on side rails, particles, frame loop. Edit for anything about look or camera that every machine shares.
 - `kit/parts.js`: rounded box, materials, board texture, and one builder per part (tiles, memory, caps, SSD, ports, heat pipe, cooler, fan). Edit to add a part; builders take coordinates from the machine file.
-- `kit/board.js`: what every machine does as the simulation runs: bus lanes (one per 32 bits) with flowing data, memory cells, one prompt-memory group per request, GPU blocks lit in proportion to the math used, the maxed-out marker. Edit to change how all machines light up.
+- `kit/board.js`: what every machine does as the simulation runs: bus lanes (one per 32 bits) with flowing data, memory cells (a model's lookup table in amber; in live mode the real memory in use), one prompt-memory group per request, GPU blocks lit in proportion to the math used, the maxed-out marker. Edit to change how all machines light up.
 - `kit/ui.js`: pills, race panel, toast, dialogs, hide-interface. Edit for interface behaviour, not for wording.
 - `kit/themes/screenprint.css`: the whole retro screenprint look, one file. Swap it to reskin.
 
 **machines/** (where the parts sit, and how the machine lights up)
 - `machines/spark.js`, `machines/rtx5090.js`, `machines/m3ultra.js`: where each machine's parts sit, its bus lanes, labels, close-up shots. Each builds into its own group (so it can sink into the stand) and hands its parts to `board.lightUp`. Copy one to start another machine, then add it to `data/machines.json` and the mission's script list.
 
-**data/** (every number is `{ "value": n, "source": "estimated" }`)
+**data/** (every number is `{ "value": n, "source": "estimated" | "config" | "chosen" }`)
 - `data/machines.json`: memory, reserve, bandwidth, TFLOPS per machine. Edit when a spec is checked or measured.
-- `data/models.json`: model sizes, prompt memory per token, compression levels (bytes per parameter), the prompt lengths, and the size handle's range and scaling.
+- `data/models.json`: the five models (Gemma 4 E4B, Qwen3.6 35B-A3B, Qwen3.8 27B, Qwen3.8-Flash-Next, Qwen3.8-Max): total, active and table parameters and `arch` (layers that keep a cache, KV heads, head size, sliding windows, linear-attention state), all from each model's config and checkpoint; the 4-bit GGUF the Spark benchmark runs; compression levels (bytes per parameter), the prompt lengths, and the size handle's range and scaling. The `about` field says how each number was counted.
+- `data/measured/spark.json`: written by the live benchmark (`live/`), never by hand. Speeds, file sizes, power, temperature and GPU clock for each model at 4-bit with the 300- and 8,000-token prompts.
 - `data/missions.json`: the list on the hub page. Set `status` to `live` and add `dir` when a mission ships.
 
 **missions/01-liftoff/** (one folder per mission)
@@ -32,8 +33,9 @@ Paths below are inside `labs/` unless they start with `.github`.
 **Build and checks**
 - `build.mjs`: `node labs/build.mjs` writes `dist/` (gitignored): `dist/index.html` and `dist/<mission>/index.html`, each one file.
 - `tools/shoot.mjs`: deterministic screenshots of a page or a preset (`page.html?machine=mac&crew=16`) and a pixel compare. Needs `npm i --no-save playwright` once. `SHOOT_GPU=1` (fast), `SHOOT_SIZE=1080x1920`, `SHOOT_UI=1`.
-- `tools/report.mjs`: an episode's Mission Report numbers from the data files, with the source of every input.
-- `_baseline/`: the three reference screenshots (software render, Spark, Session B look) and the original single-file page.
+- `tools/report.mjs`: an episode's Mission Report numbers from the data files, with the source of every input; measured numbers are marked (meas.).
+- `../live/`: live mode on the Spark (`node live/bridge.mjs`): serves `dist/`, runs real models through llama.cpp, streams memory, power and temperature, and the benchmark. See `live/README.md`.
+- `_baseline/`: the three reference screenshots (software render, the default page: Spark, Qwen3.8 27B, with the measured speeds of 2026-09-30) and the original single-file page. Regenerate them after a new benchmark: the measured speed decides how far the answer has got in each shot.
 - `../.github/workflows/pages.yml`: on push to `main`, builds and deploys `dist/` to GitHub Pages.
 
 ## Everyday commands

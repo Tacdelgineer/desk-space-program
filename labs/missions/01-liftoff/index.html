@@ -30,11 +30,17 @@
   <section class="panel answer" aria-labelledby="ans-h">
     <div class="head"><h2 id="ans-h">Answer</h2><span class="status" id="status">Loading model</span></div>
     <div class="term" id="term" aria-live="off"></div>
-    <div class="bignum"><b id="bignum">-</b><span id="bigunit">tokens per second</span></div>
+    <form class="chat" id="chat" hidden>
+      <label class="chat-model"><span>Live model</span><select id="chat-model" aria-label="Model to ask"></select></label>
+      <div class="chat-row"><input id="chat-input" type="text" maxlength="2000" placeholder="Ask it something short" aria-label="Your question" autocomplete="off" enterkeyhint="send"><button class="btn btn-launch" type="submit" id="chat-send">Send</button></div>
+    </form>
+    <div class="bignum"><b id="bignum">-</b><span id="bigunit">tokens per second</span><i class="meas" id="bigtag" hidden>measured</i></div>
     <p class="speed" id="speedline"></p>
+    <p class="meters-cap" id="meters-cap" hidden>This Spark right now <i class="meas">measured</i></p>
     <div class="meters">
-      <div class="meter gpu"><span class="lbl">GPU math used</span><span class="bar"><i id="m-gpu"></i></span><b id="v-gpu">0%</b></div>
-      <div class="meter bus"><span class="lbl">Memory bus busy</span><span class="bar"><i id="m-bus"></i></span><b id="v-bus">0%</b></div>
+      <div class="meter gpu"><span class="lbl" id="l-gpu">GPU math used</span><span class="bar"><i id="m-gpu"></i></span><b id="v-gpu">0%</b></div>
+      <div class="meter bus"><span class="lbl" id="l-bus">Memory bus busy</span><span class="bar"><i id="m-bus"></i></span><b id="v-bus">0%</b></div>
+      <div class="meter temp" id="meter-temp" hidden><span class="lbl">GPU temperature</span><span class="bar"><i id="m-temp"></i></span><b id="v-temp">-</b></div>
     </div>
   </section>
 
@@ -60,9 +66,10 @@
   </section>
 
   <section class="panel race" aria-labelledby="race-h">
-    <div class="head"><h2 id="race-h">Same launch, other machines</h2><span>Estimated</span></div>
+    <div class="head"><h2 id="race-h">Same launch, other machines</h2><span id="race-tag">Estimated</span></div>
     <div id="rrows"></div>
     <p class="note" id="race-note" aria-live="polite">Who finishes first? Guess, then launch.</p>
+    <div class="bench" id="bench" hidden><button class="btn" id="bench-btn" type="button">Benchmark the Spark</button><p id="bench-note">Runs every downloaded model: 300- and 8,000-token prompts, 150 tokens out, three times each.</p></div>
   </section>
 </div>
 
@@ -75,13 +82,18 @@
     <li>The specs are published figures. DGX Spark: 128 GB of shared memory on a 256-bit bus, 273 GB/s, a 20-core Arm CPU next to a Blackwell GPU. RTX 5090: 32 GB of GDDR7 in 16 chips on a 512-bit bus, 1,792 GB/s. Mac Studio M3 Ultra: 256 GB on the chip package, a 1,024-bit bus, 819 GB/s.</li>
     <li>The boards are illustrations, not teardowns. Placement, part counts and the coolers are simplified. Each glowing cell on a memory chip is 1 GB, and each glowing lane of the bus is 32 bits wide, so you can count them: 8, 16 and 32.</li>
     <li>The crew dial runs several requests at once. Each step reads the weights once for everyone plus each request's prompt memory, and does the math once per request, so the total speed climbs until the GPU's math catches up with memory or the prompt memory no longer fits.</li>
-    <li>Model sizes between the presets are dense models whose prompt memory is scaled from the presets.</li>
-    <li>Speeds are estimates from simple rules, not measurements. Writing speed is bandwidth divided by the bytes read per token. Reading speed is compute divided by model size, and the compute figures are rough placeholders.</li>
+    <li>The five models' sizes come from their own checkpoints: parameters added up from the tensor shapes, and the prompt memory from each config (how many layers keep a cache, how many key-value heads, how wide). Qwen3.6 and Qwen3.8 keep a growing cache on only a quarter of their layers; the rest keep a small fixed state. Gemma 4 E4B shares its cache across 18 of its 42 layers.</li>
+    <li>Amber cells are a lookup table: Flash-Next's n-gram table (51B parameters) and Gemma's per-layer embeddings. They sit in memory, but each token reads only a few rows, so they barely flicker. On the Spark the table stays in CPU memory, mapped from the file.</li>
+    <li>Qwen3.8-Max (2.4 trillion parameters, 93B read per token) is an estimate only. Nothing here can hold it.</li>
+    <li>Model sizes between the presets are dense models whose prompt memory is scaled from an older 8B model.</li>
+    <li>Estimated speeds come from simple rules. Writing speed is bandwidth divided by the bytes read per token. Reading speed is compute divided by model size, and the compute figures are rough placeholders.</li>
+    <li id="real-measured">Measured speeds replace the estimates where they exist: the DGX Spark, 4-bit, the question and document prompts, one request.</li>
+    <li id="real-live" hidden>Live mode (this page served by the bridge on the Spark): every number tagged measured is real. The wait before the first token is the reading, each token that arrives lights one pulse and types one piece of the answer, tokens per second is counted from the tokens as they arrive (the final number is llama-server's own), and the memory cells show the memory actually in use (1 cell = 1 GiB; the grey cells are other programs, the dim blue ones the part Linux never sees). GPU math used can't be measured, so live mode shows the GPU's power draw from nvidia-smi instead, and its temperature. The GPU blocks still light up by the estimate; the bus shows its published width and speed. This page draws on the GPU too: open on the Spark's own screen at 1080p, it slowed Gemma 4 E4B from 61 to 44 tokens per second (measured with and without it). The benchmark stops drawing the machine while it runs; open the lab from another computer for the fastest chat.</li>
     <li>The system keeps about 8 GB for itself, shown as the dim cells.</li>
     <li>GPU math used is the share of the GPU's math capacity in use. nvidia-smi shows a much higher busy figure while writing, because it counts any moment a program is running on the GPU, even one that mostly waits for memory.</li>
     <li>Not modeled yet: heat, and the extra work of attention on very long prompts.</li>
   </ul>
-  <p>In the real series the Spark's numbers are measured on the machine. Other machines stay marked as estimated until they're measured. Every number here is an estimate for now.</p>
+  <p id="real-foot">In the real series the Spark's numbers are measured on the machine. Other machines stay marked as estimated until they're measured.</p>
   <form method="dialog"><button class="btn" type="submit">Close</button></form>
 </dialog>
 
@@ -106,6 +118,7 @@
 
 <script type="application/json" id="data-machines" src="../../data/machines.json"></script>
 <script type="application/json" id="data-models" src="../../data/models.json"></script>
+<script type="application/json" id="data-measured" src="../../data/measured/spark.json"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/CopyShader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/LuminosityHighPassShader.js"></script>

@@ -311,11 +311,16 @@
   /* =========================================================
      LOOP: step(dt, time) runs the simulation, ui() runs about 12 times a second.
      ========================================================= */
+  // pause(true) stops drawing the scene (the panels keep updating): live mode uses it while the Spark benchmarks
+  // itself, since a lab open on the Spark draws on the same GPU the model runs on.
+  let paused = false;
+  const pause = on => { paused = !!on; };
   function run(step, ui) {
     const clock = new T.Clock();
     let first = true, uiTick = 0;
     (function frame() {
       const dt = Math.min(clock.getDelta(), 0.05), time = clock.elapsedTime;
+      if (paused && !first) { uiTick += dt; if (uiTick > 0.08) { uiTick = 0; ui(); } requestAnimationFrame(frame); return; }
       step(dt, time);
       if (shot) {
         shot.t += dt; const k = 1 - Math.exp(-dt * (reduceMotion ? 30 : 3.2));
@@ -333,5 +338,5 @@
   }
 
   DSP.actions = actions;
-  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, add, setParent, glow, heat, pool, qb, initLabels, setLab, showLabels, SHOTS, setShots, goShot, resize, run };
+  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, add, setParent, glow, heat, pool, qb, initLabels, setLab, showLabels, SHOTS, setShots, goShot, resize, run, pause };
 })(window.DSP = window.DSP || {});

@@ -2,7 +2,7 @@
    BOARD: what every machine does as the simulation runs, so the three machines light up
    by the same rules. A machine file builds its parts, then hands them to lightUp().
    - bus(): one glowing lane per 32 bits of memory bus, with data flowing along it
-   - lightUp(): memory cells (1 cell = 1 GB), one prompt-memory group per request,
+   - lightUp(): memory cells (1 cell = 1 GB), a model's lookup table (dim amber, barely read), one prompt-memory group per request,
      GPU blocks lit in proportion to the math used, the "GPU maxed out" marker, fans, particles
    ========================================================= */
 (function (DSP) {
@@ -72,6 +72,7 @@
     const rank = i => (i * 37 + 11) % NG; // a fixed scattered order, so blocks light up across the die as the crew grows
     const col = new T.Color(), hitC = new T.Color(0.7, 1.6, 1.45);
     const C_EMPTY = new T.Color(0.018, 0.02, 0.03), C_SYS = new T.Color(0.09, 0.1, 0.22), C_W = new T.Color(0.09, 0.95, 0.8), C_KV = new T.Color(0.85, 0.87, 1.0), C_OVER = new T.Color(1.4, 0.18, 0.55);
+    const C_TABLE = new T.Color(0.95, 0.55, 0.08), C_OTHER = new T.Color(0.2, 0.19, 0.17);
     const KV_A = new T.Color(0.95, 0.93, 1.0), KV_B = new T.Color(0.55, 0.62, 1.15);
     const marker = frame(...o.gpuBox, new T.Color(1.6, 0.25, 0.15));
 
@@ -102,17 +103,27 @@
       kv.count = k; kv.instanceMatrix.needsUpdate = true;
     }
 
+    // sim.live (live mode, measured): { totalGB, usedGB, modelGB, tableGB } in GiB. The cells then show the real memory:
+    // the model's weights, its table (mapped from the file, so Linux can drop it), everything else in use, and the
+    // part of the 128 GB that Linux never sees. No separate prompt memory: it is inside "in use".
     return function animate(sim, model, dt, time) {
-      const p = sim.plan;
+      const p = sim.plan, L = sim.live;
       fans.forEach(f => { f.fan.rotation.y = reduceMotion ? 0 : f.fan.rotation.y + sim.fan * dt * 6; });
 
       // memory cells: system reserve, weights, prompt memory, empty; overflow in magenta
-      const usable = p.usable, wC = Math.min(usable, p.weightsGB), kC = p.fits ? p.kvTotal : Math.max(0, usable - wC);
-      const shownW = wC * sim.load, shownK = kC * Math.max(0, sim.load * 1.4 - 0.4);
+      const usable = L ? L.totalGB : p.usable;
+      const allW = L ? L.modelGB : Math.min(usable, p.weightsGB);           // weights, table included
+      const tC = Math.min(allW, L ? L.tableGB : (p.tableGB || 0)), wC = allW - tC;
+      const kC = L ? Math.max(0, L.usedGB - (allW - tC)) : p.fits ? p.kvTotal : Math.max(0, usable - allW);
+      const shownW = allW * sim.load, shownK = L ? kC : kC * Math.max(0, sim.load * 1.4 - 0.4);
       const tokPhase = sim.tokens - Math.floor(sim.tokens);
       const nW = Math.ceil(wC);
       for (let i = 0; i < N; i++) {
         if (i >= usable) { col.copy(C_SYS); }
+        else if (i < shownW && i >= wC) {                                   // the table: one faint blink now and then
+          col.copy(C_TABLE).multiplyScalar(0.16 + 0.12 * Math.min(1, shownW - i));
+          if (sim.phase === 'writing' && sim.tableHit === i - Math.floor(wC)) col.lerp(hitC, sim.flash * 0.35);
+        }
         else if (i < shownW) {
           const part = Math.min(1, shownW - i);
           col.copy(C_W).multiplyScalar(0.28 + 0.5 * part);
@@ -122,15 +133,15 @@
             else { const d = Math.abs(i / Math.max(1, nW) - tokPhase); hit = Math.max(0, 1 - d * 9); }
             col.lerp(hitC, hit * 0.8);
           } else if (sim.phase === 'reading') col.multiplyScalar(1.15 + 0.25 * Math.sin(time * 7 + i));
-        } else if (i < shownW + shownK) { col.copy(C_KV).multiplyScalar(0.12); }
+        } else if (i < shownW + shownK) { if (L) col.copy(C_OTHER); else col.copy(C_KV).multiplyScalar(0.12); }
         else col.copy(C_EMPTY);
-        if (!p.fits && sim.load >= 1 && i < usable && i >= usable - nOver) col.copy(C_OVER).multiplyScalar(0.55 + 0.45 * Math.sin(time * 9));
+        if (!L && !p.fits && sim.load >= 1 && i < usable && i >= usable - nOver) col.copy(C_OVER).multiplyScalar(0.55 + 0.45 * Math.sin(time * 9));
         mem.cells.setColorAt(i, col);
       }
       mem.cells.instanceColor.needsUpdate = true;
 
       // one prompt-memory group per request: dim while reserved, lit as each prompt is read
-      layoutKv(wC, p.kvGB, p.crew, Math.min(usable, wC + shownK));
+      layoutKv(allW, p.kvGB, L ? 0 : p.crew, Math.min(usable, allW + shownK));
       const readUpTo = sim.phase === 'reading' ? p.crew * Math.min(1, sim.t / Math.max(1e-6, p.readS)) : sim.phase === 'writing' || sim.phase === 'done' ? p.crew : 0;
       for (let k = 0; k < kv.count; k++) {
         const r = kvOwner[k];
@@ -139,7 +150,7 @@
       }
       if (kv.instanceColor) kv.instanceColor.needsUpdate = true;
 
-      if (!p.fits && sim.load >= 1 && Math.random() < dt * 30) {
+      if (!L && !p.fits && sim.load >= 1 && Math.random() < dt * 30) {
         const c = mem.cellPos[Math.floor(Math.random() * nSpill)];
         spillP.spawn({ life: 1.6, fade: true, p: c.clone().setY(c.y + 0.1), v: new T.Vector3(Math.sign(c.x || 1) * (2 + Math.random() * 2), 3 + Math.random() * 2, (Math.random() - 0.5) * 2) });
       }

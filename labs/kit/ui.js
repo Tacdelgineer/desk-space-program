@@ -34,7 +34,7 @@
     const rrows = document.getElementById('rrows');
     machines.forEach(m => {
       const d = document.createElement('div'); d.className = 'rrow'; d.dataset.id = m.id;
-      d.innerHTML = '<div class="top"><b></b><span></span></div><div class="track"><i></i></div>';
+      d.innerHTML = '<div class="top"><b></b><i class="meas" hidden>measured</i><span></span></div><div class="track"><i></i></div>';
       d.querySelector('b').textContent = m.name; rrows.appendChild(d); m.row = d;
     });
   }
@@ -54,6 +54,7 @@
       else { txt = 'Done in ' + fmtS(p.totalS); w = 1; cls = winner && winner.m.id === o.m.id ? 'win' : ''; if (cls) txt = 'First, ' + fmtS(p.totalS); }
       if (span.textContent !== txt) span.textContent = txt;
       span.className = cls; bar.style.width = (w * 100).toFixed(1) + '%'; bar.classList.toggle('read', read);
+      d.querySelector('.top .meas').hidden = !(p.fits && p.measured);
     });
   }
 
