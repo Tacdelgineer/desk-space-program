@@ -43,13 +43,13 @@
     /* =========================================================
        3. SIMULATION
        ========================================================= */
-    const sim = { raceDone: false, phase: 'loading', t: 0, load: 0, plan: null, others: [], tokens: 0, lastTok: 0, flash: 0, gpu: 0, bus: 0, fan: 0.5, winnerId: null, activeSet: null };
+    const sim = { raceDone: false, phase: 'loading', t: 0, load: 0, plan: null, others: [], tokens: 0, lastTok: 0, flash: 0, gpu: 0, bus: 0, fan: 0.5, activeSet: null };
 
     function applySelection() {
       const model = pick(MODELS, sel.model), prec = pick(PRECS, sel.prec), prompt = pick(PROMPTS, sel.prompt);
       sim.plan = calc(SPARK, model, prec, prompt);
       sim.others = MACHINES.map(m => ({ m, p: calc(m, model, prec, prompt) }));
-      sim.phase = 'loading'; sim.t = 0; sim.load = 0; sim.tokens = 0; sim.lastTok = 0; sim.winnerId = null; sim.raceDone = false;
+      sim.phase = 'loading'; sim.t = 0; sim.load = 0; sim.tokens = 0; sim.lastTok = 0; sim.raceDone = false;
       outP.clear(); spillP.clear();
       const p = sim.plan;
       let s = model.name + ' at ' + prec.id + '-bit takes <b' + (p.fits ? '' : ' class="over"') + '>' + fmtGB(p.weightsGB) + ' GB</b>, plus <b>' + fmtGB(p.kvGB) + ' GB</b> of prompt memory for ' + prompt.name + ' (' + prompt.tokens.toLocaleString('en-US') + ' tokens). The Spark has <b>' + p.usable + ' GB</b> free.';
@@ -68,10 +68,9 @@
       if (sim.phase === 'reading' || sim.phase === 'writing') return;
       if (!sim.plan.fits) { ui.toast('This model needs ' + fmtGB(sim.plan.needGB) + ' GB and the Spark has ' + sim.plan.usable + ' GB free. Try 4-bit or a smaller model.'); return; }
       if (sim.phase === 'loading') sim.load = 1;
-      sim.phase = 'reading'; sim.t = 0; sim.tokens = 0; sim.lastTok = 0; sim.winnerId = null; sim.raceDone = false; outP.clear();
+      sim.phase = 'reading'; sim.t = 0; sim.tokens = 0; sim.lastTok = 0; sim.raceDone = false; outP.clear();
       setTerm(''); document.getElementById('race-note').textContent = '';
     }
-    function reset() { applySelection(); }
 
     const termEl = document.getElementById('term');
     let termShown = -1;
@@ -183,9 +182,7 @@
     }
 
     DSP.actions.launch = launch;
-    DSP.actions.reset = reset;
     document.getElementById('launch').addEventListener('click', launch);
-    document.getElementById('reset').addEventListener('click', reset);
 
     /* =========================================================
        5. GO

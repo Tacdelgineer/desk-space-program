@@ -82,13 +82,12 @@
 
     P.stand('DESK SPACE PROGRAM   MISSION 01: LIFTOFF', 'DGX SPARK');
 
-    // case: base tray, two walls kept (cutaway), standoffs
+    // case: base tray, two walls kept (cutaway)
     mesh(rbox(16.6, 0.5, 16.6, 0.2), M.gold, 0, 0.25, 0);
     mesh(rbox(16.6, 4.8, 0.5, 0.14), M.foam, 0, 2.9, -8.05);
     mesh(rbox(0.5, 4.8, 16.6, 0.14), M.gold, -8.05, 2.9, 0);
     mesh(new T.BoxGeometry(16.6, 0.06, 0.5), M.dark, 0, 5.31, -8.05);
     mesh(new T.BoxGeometry(0.5, 0.06, 16.6), M.dark, -8.05, 5.31, 0);
-    [[-6.8, -6.8], [6.8, -6.8], [-6.8, 6.8], [6.8, 6.8]].forEach(([x, z]) => mesh(new T.CylinderGeometry(0.28, 0.28, 0.5, 16), M.gold, x, 0.75, z));
 
     // board
     const pcbTex = pcb(CHIPS);

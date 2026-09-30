@@ -20,9 +20,8 @@ Everything below was learned the hard way. Read it before touching the code.
   cells per token. Too-big models overflow in magenta.
 - **UI:** retro screenprint theme (one CSS block marked `THEME: retro screenprint`), answer
   panel with a big red speed number, side race against RTX 5090 and Mac Studio (bars only),
-  controls bar at the bottom, part labels with leader lines, dialogs for What's real, Keys,
-  Missions.
-- **Keys:** Space launch, 1–4 camera shots, C orbit, H hide UI, L hide labels, F fullscreen, R reset.
+  controls bar at the bottom, part labels with leader lines, dialogs for What's real and Keys.
+- **Keys:** Space launch, 1–4 camera shots, C orbit, H hide UI, F fullscreen.
 
 ## Stack and why
 

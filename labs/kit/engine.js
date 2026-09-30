@@ -11,8 +11,8 @@
   if (T.ColorManagement) T.ColorManagement.legacyMode = false;
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Late-bound buttons the keys call. The mission sets launch and reset, ui.js sets toggleUI.
-  const actions = { launch() {}, reset() {}, toggleUI() {} };
+  // Late-bound buttons the keys call. The mission sets launch, ui.js sets toggleUI.
+  const actions = { launch() {}, toggleUI() {} };
 
   /* =========================================================
      RENDERER, SCENE, CAMERA, POST
@@ -115,7 +115,6 @@
     x.fillStyle = g; x.fillRect(0, 0, w, h);
     const step = w / 52;
     for (let i = 0; i <= w; i += step) {
-      const a = (i / w - 0.5);
       x.strokeStyle = 'rgba(120,130,220,.045)'; x.lineWidth = 1.5;
       x.beginPath(); x.moveTo(i, 0); x.lineTo(i, h); x.stroke(); x.beginPath(); x.moveTo(0, i); x.lineTo(w, i); x.stroke();
     }
@@ -179,7 +178,7 @@
   function setLab(id, text, cls) { const L = LABELS.find(l => l.id === id); if (L.sub.textContent !== text) L.sub.textContent = text; const c = cls || ''; if (L.sub.className !== c) L.sub.className = c; }
   const pv = new T.Vector3();
   function updateLabels() {
-    if (document.body.classList.contains('no-labels') || document.body.classList.contains('hide-ui') || window.innerWidth <= 900) return;
+    if (document.body.classList.contains('hide-ui') || window.innerWidth <= 900) return;
     const placedBoxes = [];
     LABELS.forEach(L => {
       pv.copy(L.at).project(camera);
@@ -255,10 +254,8 @@
     const tag = (e.target && e.target.tagName) || '';
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (k === ' ') { if (/INPUT|BUTTON|SUMMARY/.test(tag)) return; e.preventDefault(); actions.launch(); return; }
-    if (k === 'r') actions.reset();
-    else if (k === 'c') { controls.autoRotate = !controls.autoRotate; shot = null; }
+    if (k === 'c') { controls.autoRotate = !controls.autoRotate; shot = null; }
     else if (k === 'h') actions.toggleUI();
-    else if (k === 'l') document.body.classList.toggle('no-labels');
     else if (k === 'f') { if (!document.fullscreenElement) { const d = document.documentElement; if (d.requestFullscreen) d.requestFullscreen().catch(() => {}); } else if (document.exitFullscreen) document.exitFullscreen(); }
     else if (SHOTS[k]) goShot(k);
   });

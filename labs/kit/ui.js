@@ -38,7 +38,7 @@
     sim.others.forEach(o => { if (o.p.fits && (!winner || o.p.totalS < winner.p.totalS)) winner = o; });
     sim.others.forEach(o => {
       const d = o.m.row, span = d.querySelector('.top span'), bar = d.querySelector('.track i');
-      const p = o.p, t = o.m.id === 'spark' ? sim.t : sim.t;
+      const p = o.p, t = sim.t;
       let txt = '', cls = '', w = 0, read = false;
       if (!p.fits) { txt = 'Doesn\'t fit: needs ' + fmtGB(p.needGB) + ' GB'; cls = 'bad'; }
       else if (!running) { txt = 'Fits, ' + fmtGB(p.needGB) + ' of ' + p.usable + ' GB'; }
@@ -61,7 +61,6 @@
   const openDlg = d => { if (d.showModal) d.showModal(); else d.setAttribute('open', ''); };
   document.getElementById('open-info').addEventListener('click', () => openDlg(document.getElementById('info')));
   document.getElementById('open-keys').addEventListener('click', () => openDlg(document.getElementById('keys-dlg')));
-  document.getElementById('open-missions').addEventListener('click', () => openDlg(document.getElementById('missions-dlg')));
 
   DSP.ui = { pills, syncPills, buildRace, renderRace, toast, toggleUI };
 })(window.DSP = window.DSP || {});
