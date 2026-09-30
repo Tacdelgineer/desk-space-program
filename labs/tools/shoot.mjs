@@ -1,0 +1,128 @@
+// Deterministic screenshots of a lab page, and a pixel compare of two folders of them.
+//
+//   npm i --no-save playwright            (once, at the repo root; node_modules is gitignored)
+//   node labs/tools/shoot.mjs <page.html> <outDir> [shots=1,2,3]
+//   node labs/tools/shoot.mjs --compare <dirA> <dirB> [diffDir]
+//
+// Every shot is 1920x1080, UI hidden (H), Llama 70B at 4-bit, a few seconds into the writing phase.
+// Math.random is seeded and time is virtual (requestAnimationFrame and performance.now are stepped
+// by hand), so the same page renders the same pixels on every run, grain included.
+// Renders in software (SwiftShader): on the DGX Spark, Chromium's Vulkan/ANGLE path reports
+// "createPipeline: Internal Vulkan error (-13)" and draws this page mostly black. SHOOT_GPU=1 tries it anyway.
+import { chromium } from 'playwright';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const W = 1920, H = 1080, STEP_MS = 1000 / 30, WRITING_FRAMES = 90;
+const CACHE = path.join(os.tmpdir(), 'dsp-shoot-cache');
+
+const ARGS = process.env.SHOOT_GPU
+  ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist']
+  : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
+
+// Runs before the page's own scripts.
+function determinism(seed) {
+  let s = seed >>> 0;
+  const next = () => { s = (s + 0x6D2B79F5) >>> 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const native = Math.random.bind(Math);
+  // three.js spends Math.random on object ids; keep those out of the seeded stream so the count of
+  // objects can change without changing the textures and particles drawn from it.
+  Math.random = () => ((new Error().stack || '').split('\n')[2] || '').includes('three.min.js') ? native() : next();
+  let now = 0, queue = [];
+  performance.now = () => now;
+  window.requestAnimationFrame = cb => { queue.push(cb); return queue.length; };
+  window.__step = (n, dt) => { for (let i = 0; i < n; i++) { now += dt; const run = queue; queue = []; run.forEach(cb => cb(now)); } };
+}
+
+async function cachedRoute(ctx) {
+  fs.mkdirSync(CACHE, { recursive: true });
+  // Board text is drawn on canvases before the web fonts arrive (HANDOFF gotcha 9), so whether it
+  // uses the fallback or the real font is a race. Block the font files to make it always the fallback.
+  await ctx.route(/^https:\/\/fonts\.gstatic\.com\//, route => route.abort());
+  await ctx.route(/^https:\/\/(cdn\.jsdelivr\.net|fonts\.googleapis\.com)\//, async route => {
+    const url = route.request().url(), f = path.join(CACHE, createHash('sha1').update(url).digest('hex'));
+    if (fs.existsSync(f + '.body')) {
+      const meta = JSON.parse(fs.readFileSync(f + '.json', 'utf8'));
+      return route.fulfill({ status: 200, headers: meta.headers, body: fs.readFileSync(f + '.body') });
+    }
+    const r = await route.fetch();
+    const body = await r.body();
+    if (r.status() === 200) { fs.writeFileSync(f + '.body', body); fs.writeFileSync(f + '.json', JSON.stringify({ headers: r.headers() })); }
+    return route.fulfill({ response: r, body });
+  });
+}
+
+async function shoot(pagePath, outDir, shots) {
+  const url = /^https?:|^file:/.test(pagePath) ? pagePath : pathToFileURL(path.resolve(pagePath)).href;
+  fs.mkdirSync(outDir, { recursive: true });
+  const browser = await chromium.launch({ args: ARGS });
+  for (const k of shots) {
+    // Software rendering is slow, so the simulation is fast-forwarded in a small window and only the last frames are drawn at full size.
+    const ctx = await browser.newContext({ viewport: { width: 480, height: 270 }, deviceScaleFactor: 1, colorScheme: 'light', reducedMotion: 'no-preference' });
+    await cachedRoute(ctx);
+    const page = await ctx.newPage();
+    page.on('pageerror', e => console.error('page error:', e.message));
+    await page.addInitScript(determinism, 20260929);
+    await page.goto(url, { waitUntil: 'load' });
+    await page.waitForFunction(() => window.__lab && window.__lab.sim.plan, null, { timeout: 30000, polling: 100 });  // default polling uses rAF, which is stubbed
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(dt => __step(3, dt), STEP_MS);
+    await page.waitForTimeout(1000);                       // the loading curtain fades in real time
+    await page.keyboard.press('h');                        // hide the interface
+    await page.evaluate(([dt, n]) => {
+      __lab.launch();
+      for (let i = 0; __lab.sim.phase !== 'writing' && i < 3000; i++) __step(1, dt);
+      __step(n, dt);
+    }, [STEP_MS, WRITING_FRAMES]);
+    await page.setViewportSize({ width: W, height: H });
+    await page.waitForTimeout(400);
+    await page.evaluate(dt => __step(2, dt), STEP_MS);      // let resize() settle at full size
+    await page.evaluate(([key, dt]) => { __lab.goShot(key, true); __step(3, dt); }, [k, STEP_MS]);
+    const info = await page.evaluate(() => ({ phase: __lab.sim.phase, tokens: Math.floor(__lab.sim.tokens), gl: (() => { const g = document.createElement('canvas').getContext('webgl2'), e = g && g.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : '?'; })() }));
+    const file = path.join(outDir, `shot-${k}.png`);
+    await page.screenshot({ path: file });
+    console.log(`shot ${k}: ${file}  (${info.phase}, ${info.tokens} tokens, ${info.gl})`);
+    await ctx.close();
+  }
+  await browser.close();
+}
+
+// Compare shot-*.png in two folders. Reports how many pixels differ by more than 2/255 on any channel.
+async function compare(a, b, diffDir) {
+  const browser = await chromium.launch({ args: ARGS });
+  const page = await browser.newPage();
+  const files = fs.readdirSync(a).filter(f => /^shot-.*\.png$/.test(f)).sort();
+  let bad = 0;
+  for (const f of files) {
+    if (!fs.existsSync(path.join(b, f))) { console.log(f, 'missing in', b); bad++; continue; }
+    const r = await page.evaluate(async ([x, y]) => {
+      const load = async d => { const i = await createImageBitmap(await (await fetch('data:image/png;base64,' + d)).blob()); const c = new OffscreenCanvas(i.width, i.height), g = c.getContext('2d'); g.drawImage(i, 0, 0); return g.getImageData(0, 0, i.width, i.height); };
+      const A = await load(x), B = await load(y);
+      if (A.width !== B.width || A.height !== B.height) return { size: false };
+      const out = new ImageData(A.width, A.height); let n = 0, max = 0, sum = 0;
+      for (let i = 0; i < A.data.length; i += 4) {
+        const d = Math.max(Math.abs(A.data[i] - B.data[i]), Math.abs(A.data[i + 1] - B.data[i + 1]), Math.abs(A.data[i + 2] - B.data[i + 2]));
+        sum += d; if (d > max) max = d; if (d > 2) n++;
+        const v = Math.min(255, d * 8); out.data[i] = v; out.data[i + 1] = v; out.data[i + 2] = v; out.data[i + 3] = 255;
+      }
+      const c = new OffscreenCanvas(A.width, A.height); c.getContext('2d').putImageData(out, 0, 0);
+      const blob = await c.convertToBlob({ type: 'image/png' });
+      const buf = new Uint8Array(await blob.arrayBuffer()); let s = ''; buf.forEach(v => { s += String.fromCharCode(v); });
+      return { size: true, pixels: A.width * A.height, n, max, mean: sum / (A.width * A.height), diff: btoa(s) };
+    }, [fs.readFileSync(path.join(a, f)).toString('base64'), fs.readFileSync(path.join(b, f)).toString('base64')]);
+    if (!r.size) { console.log(f, 'different sizes'); bad++; continue; }
+    console.log(`${f}: ${r.n} px differ by >2/255 (${(100 * r.n / r.pixels).toFixed(4)}%), max ${r.max}/255, mean ${r.mean.toFixed(4)}`);
+    if (diffDir) { fs.mkdirSync(diffDir, { recursive: true }); fs.writeFileSync(path.join(diffDir, 'diff-' + f), Buffer.from(r.diff, 'base64')); }
+    if (r.n > 0) bad++;
+  }
+  await browser.close();
+  process.exit(bad ? 1 : 0);
+}
+
+const argv = process.argv.slice(2);
+if (argv[0] === '--compare') await compare(argv[1], argv[2], argv[3]);
+else if (argv.length >= 2) await shoot(argv[0], argv[1], (argv[2] || '1,2,3').split(','));
+else { console.error('usage: shoot.mjs <page.html> <outDir> [1,2,3]   |   shoot.mjs --compare <dirA> <dirB> [diffDir]'); process.exit(2); }
