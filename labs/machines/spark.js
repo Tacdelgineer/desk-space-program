@@ -125,17 +125,39 @@
     P.nic(Y0);
     P.ports(Y0);
 
-    // cooler, lifted off (exploded view)
+    // cooler, lifted off (exploded view); while the machine is closed it sits on the chip
     const COOL_Y = 6.4;
+    const coolG = new T.Group(); group.add(coolG); E.setParent(coolG);
     P.cooler(COOL_Y);
     const FAN = new T.Vector3(0, 9.1, -4.8);
     const fan = P.fan(FAN);
+    E.setParent(group);
     // exploded-view guide lines
     const dashM = new T.LineDashedMaterial({ color: 0x9ea4d2, dashSize: 0.25, gapSize: 0.18, transparent: true, opacity: 0.55 });
     [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]].forEach(([x, z]) => {
       const l = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(x + 0.1, COOL_Y - 0.2, z), new T.Vector3(x * 1.04, DIE_Y + 0.02, z * 1.04)]), dashM);
       l.computeLineDistances(); E.add(l);
     });
+
+    // the shell: a small champagne desktop box with a slatted front and an inset top, lifted off in one piece.
+    // Stylized, not the real product: no logos, no foam front.
+    const S = DSP.shell, lid = new T.Group(); group.add(lid); E.setParent(lid);
+    const grilleM = std(0x15161b, 0.6, 0.3), grilleM0 = () => grilleM;
+    const H = 5.9, shellM = M.gold.clone(), insetM = std(0x7d6440, 0.42, 0.85, { roughnessMap: M.gold.roughnessMap, envMapIntensity: 0.45 });
+    shellM.userData.envTuned = insetM.userData.envTuned = true;
+    const hood = mesh(S.block(S.rounded(0.55), 17.1, 17.1, 0.02, H, 0.2), shellM, 0, 0, 0);
+    mesh(rbox(15.4, 0.06, 15.4, 0.4), insetM, 0, H + 0.01, 0);
+    const perf = []; for (let a = 0; a < 26; a++) for (let b = 0; b < 9; b++) perf.push([-6.25 + a * 0.5, H + 0.045, -6.4 + b * 0.5]);
+    scatter(new T.CylinderGeometry(0.12, 0.12, 0.02, 10), grilleM0(), perf, false);
+    mesh(new T.BoxGeometry(10.4, 3.2, 0.08), grilleM, -2.7, 2.95, 8.56, { noCast: true });
+    const slats = []; for (let i = 0; i < 9; i++) slats.push([-2.7, 1.62 + i * 0.335, 8.62]);
+    scatter(new T.BoxGeometry(10.1, 0.13, 0.1), insetM, slats, false);
+    mesh(new T.CylinderGeometry(0.13, 0.13, 0.06, 16), new T.MeshBasicMaterial({ color: new T.Color(0x27f2d2).multiplyScalar(1.3) }), -7.3, 5.15, 8.58, { noCast: true }).rotation.x = Math.PI / 2;
+    const plate = S.plate({ w: 4.5, h: 2.9, face: 'front', at: [5.55, 2.95, 8.56] });
+    E.setParent(group);
+    // the mug, at the Spark's scale (150 mm across)
+    S.mug(16.6 / 150, 15.2, -4.0, -Math.PI / 4);
+    const rig = S.rig({ lid, parts: [{ g: coolG, seat: [0, -4.78, 0] }], guides: dashM, glow: [shellM, insetM] });
 
     P.tuneEnv();
 
@@ -159,6 +181,7 @@
 
     return {
       group, animate, labels, outP, spillP,
+      shell: { rig, grab: [hood], plate, hint: new T.Vector3(1.5, H, 6.2), what: 'lid' },
       chips: '8 chips', busBits: 256,
       notes: { cpu: '20 Arm cores', ssd: '4 TB, where models wait', fan: 'spins up under load' }, loadingLabel: 'ssd',
       // answer packets leave the GPU for the back ports

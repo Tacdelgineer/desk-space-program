@@ -3,7 +3,8 @@
    by the same rules. A machine file builds its parts, then hands them to lightUp().
    - bus(): one glowing lane per 32 bits of memory bus, with data flowing along it
    - lightUp(): memory cells (1 cell = 1 GB), a model's lookup table (dim amber, barely read), one prompt-memory group per request,
-     GPU blocks lit in proportion to the math used, the "GPU maxed out" marker, fans, particles
+     GPU blocks lit in proportion to the math used (and, for a moment, while the crew dial turns), the "GPU maxed out"
+     marker, fans, particles
    ========================================================= */
 (function (DSP) {
   'use strict';
@@ -167,6 +168,7 @@
         let h = 0;
         if (sim.phase === 'reading') h = 0.75 + 0.35 * Math.random();
         else if (sim.phase === 'writing' && rank(i) < lit) h = p.gpuMax ? 0.8 + 0.3 * Math.random() : (0.3 + 0.7 * sim.flash) * (0.75 + 0.25 * Math.random());
+        else if (sim.preview > 0 && rank(i) < lit) h = 0.55 * sim.preview;   // the crew dial turning: the math that crew would use
         col.setRGB(0.012 + 1.7 * h, 0.013 + 0.75 * Math.pow(h, 1.5), 0.02 + 0.25 * h * h * h);
         setTile(gpus, i, col);
       }

@@ -148,17 +148,42 @@
 
     // cooler, lifted straight up (exploded view): vapour chamber, a stack of flat fins, four heat pipes, one big fan
     const FX = PX, FZ = PZ, COOL_Y = 8.2;
+    const coolG = new T.Group(); group.add(coolG); E.setParent(coolG);
     mesh(rbox(5.4, 0.3, 4.4, 0.08), M.copper, FX, COOL_Y, FZ);
     const fins = []; for (let i = 0; i < 16; i++) fins.push([FX, COOL_Y + 0.38 + i * 0.1, FZ]);
     scatter(new T.BoxGeometry(6.4, 0.035, 5.0), M.alu, fins, true);
     [-1, 1].forEach(s => [-1.3, 1.3].forEach(dz => P.heatPipe([[FX + s * 1.8, COOL_Y + 0.1, FZ + dz], [FX + s * 3.0, COOL_Y + 0.12, FZ + dz], [FX + s * 3.42, COOL_Y + 0.6, FZ + dz], [FX + s * 3.42, COOL_Y + 1.9, FZ + dz]])));
     const FAN = new T.Vector3(FX, COOL_Y + 2.3, FZ);
     const fan = P.fan(FAN, 1.4);
+    E.setParent(group);
     const dashM = new T.LineDashedMaterial({ color: 0x9ea4d2, dashSize: 0.25, gapSize: 0.18, transparent: true, opacity: 0.55 });
     [[-2.5, -1.95], [2.5, -1.95], [-2.5, 1.95], [2.5, 1.95]].forEach(([dx, dz]) => {
       const l = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(FX + dx, COOL_Y - 0.2, FZ + dz), new T.Vector3(PX + dx * 1.1, SUB_Y + 0.02, PZ + dz * 1.05)]), dashM);
       l.computeLineDistances(); E.add(l);
     });
+
+    // the shell: a low graphite mini PC with cut corners, a hex-perforated vent across the top and a red trim line.
+    // Stylized, not the real product: no logo, no brand marks.
+    const S = DSP.shell, lid = new T.Group(); group.add(lid); E.setParent(lid);
+    const H = 5.7, shellM = graphite.clone(); shellM.color.setHex(0x3e434e); shellM.userData.envTuned = true;
+    const hood = mesh(S.block(S.chamfered(1.9), 17.1, 17.1, 0.02, H, 0.14), shellM, 0, 0, 0);
+    const trimM = red.clone();
+    mesh(S.band(S.chamfered(1.93), 17.16, 17.16, 0.1, 0.12), trimM, 0, H - 0.5, 0, { noCast: true });
+    const vent = E.canvasTex(1024, 1024, (x, w, h) => {
+      x.fillStyle = '#4a4f5b'; x.fillRect(0, 0, w, h); x.fillStyle = '#0c0d10';
+      const pitch = w / 22, R = pitch / Math.sqrt(3) * 0.78, rowH = pitch * Math.sqrt(3) / 2;
+      for (let r = 0, y = pitch * 0.6; y < h - pitch * 0.4; r++, y += rowH) for (let cx = pitch * 0.6 + (r % 2 ? pitch / 2 : 0); cx < w - pitch * 0.4; cx += pitch) {
+        x.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; x.lineTo(cx + R * Math.cos(a), y + R * Math.sin(a)); } x.fill();
+      }
+    }, true);
+    const ventM = std(0xffffff, 0.55, 0.6, { map: vent, envMapIntensity: 0.4 }); ventM.userData.envTuned = true;
+    const ventP = mesh(new T.PlaneGeometry(11.5, 11.5), ventM, -0.4, H + 0.006, -0.6, { noCast: true }); ventP.rotation.x = -Math.PI / 2;
+    mesh(new T.BoxGeometry(3.4, 0.08, 0.05), new T.MeshBasicMaterial({ color: new T.Color(0xff3a2c).multiplyScalar(1.3) }), -4.6, 1.15, 8.57, { noCast: true });
+    const plate = S.plate({ w: 4.5, h: 2.9, face: 'front', at: [4.9, 2.85, 8.57] });
+    E.setParent(group);
+    // the mug, at the mini PC's scale (150 mm across)
+    S.mug(16.6 / 150, 15.2, -4.0, -Math.PI / 4);
+    const rig = S.rig({ lid, parts: [{ g: coolG, seat: [0, -6.6, 0] }], guides: dashM, glow: [shellM, trimM] });
 
     P.tuneEnv();
 
@@ -181,6 +206,7 @@
 
     return {
       group, animate, labels, outP, spillP,
+      shell: { rig, grab: [hood], plate, hint: new T.Vector3(1.0, H, 6.2), what: 'lid' },
       chips: '8 packages', busBits: 256,
       notes: { cpu: '16 Zen 5 cores', npu: '50 TOPS, idle: llama.cpp uses the GPU', ssd: '2 TB, where models wait', fan: '120 W, spins up under load' }, loadingLabel: 'ssd',
       // answer packets leave the GPU for the 10 GbE port

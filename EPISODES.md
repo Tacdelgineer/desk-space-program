@@ -34,9 +34,12 @@ Shot list: 1) ... 2) ... 3) ...
 
 Live lab: https://tacdelgineer.github.io/desk-space-program/01-liftoff/ . Preset parameters: `machine` (spark, rtx5090,
 mac, strix, pro6000), `model` (g4, q36, q27, flash, max, or a size in billions for a dense model), `bits` (4, 8, 16), `prompt` (q, doc, code),
-`crew` (1–64), `shot` (1–4), `speed` (1, 5), `record=1` (interface hidden, launches once the model has loaded).
-In record mode: keys 1–4 move the camera, Space launches again, M switches to the next machine (Spark, 5090, Mac,
-Strix Halo, RTX Pro 6000, round again), H brings the interface back.
+`crew` (1–64), `shot` (1–4), `speed` (1, 5), `record=1` (interface hidden, the console stays in the picture; the machine
+starts closed, opens at 0.7 s, and launches once the model has loaded and the lid is off), `open=1` (start open; `shot=2`–`4`
+do too, since they look inside).
+In record mode: keys 1–4 move the camera, Space launches again (the console's cover lifts and its switch flips), O closes or
+opens the machine, M switches to the next machine (Spark, 5090, Mac, Strix Halo, RTX Pro 6000, round again; the new one
+comes up closed, then opens), H brings the interface back.
 The public page shows the measured numbers once `labs/data/measured/spark.json` is pushed.
 
 **Measured and estimated.** The DGX Spark column is **measured** for the four downloaded models at 4-bit with the

@@ -11,8 +11,8 @@
   if (T.ColorManagement) T.ColorManagement.legacyMode = false;
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Late-bound buttons the keys call. The mission sets launch and nextMachine, ui.js sets toggleUI.
-  const actions = { launch() {}, nextMachine() {}, toggleUI() {} };
+  // Late-bound buttons the keys call. The mission sets launch, nextMachine and toggleCase, ui.js sets toggleUI and toggleBar.
+  const actions = { launch() {}, nextMachine() {}, toggleUI() {}, toggleCase() {}, toggleBar() {} };
 
   /* =========================================================
      RENDERER, SCENE, CAMERA, POST
@@ -67,9 +67,10 @@
   // Lights: warm key with soft shadows, cool rim, low fill
   scene.add(new T.HemisphereLight(0x9aa3ff, 0x07070b, 0.3));
   const key = new T.DirectionalLight(0xffd6a0, 3.2);
-  key.position.set(-16, 30, 20); key.castShadow = true;
+  // aimed at the middle of the stand and the console in front of it; same direction as before, a wider shadow box
+  key.position.set(-12, 30, 26); key.target.position.set(4, 0, 6); scene.add(key.target); key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
-  Object.assign(key.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 90 });
+  Object.assign(key.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 110 });
   key.shadow.bias = -0.0004; key.shadow.normalBias = 0.03; key.shadow.radius = 3;
   scene.add(key);
   const rimL = new T.DirectionalLight(0x6aa8ff, 0.9); rimL.position.set(18, 10, -22); scene.add(rimL);
@@ -198,9 +199,23 @@
     const d1 = d(b.p, b.q, a.p), d2 = d(b.p, b.q, a.q), d3 = d(a.p, a.q, b.p), d4 = d(a.p, a.q, b.q);
     return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
   }
+  // Labels stay above an object on the screen (the console): setAvoid(object3D) or setAvoid(null).
+  let avoid = null;
+  const avoidBox = new T.Box3();
+  function setAvoid(o) { avoid = o; }
+  function avoidTop() {
+    if (!avoid || !avoid.visible) return Infinity;
+    avoidBox.setFromObject(avoid);
+    let top = Infinity;
+    for (let i = 0; i < 8; i++) {
+      pv.set(i & 1 ? avoidBox.max.x : avoidBox.min.x, i & 2 ? avoidBox.max.y : avoidBox.min.y, i & 4 ? avoidBox.max.z : avoidBox.min.z).project(camera);
+      if (pv.z < 1) top = Math.min(top, (-pv.y * 0.5 + 0.5) * viewH);
+    }
+    return top;
+  }
   function updateLabels() {
     if (!labelsOn || document.body.classList.contains('hide-ui') || window.innerWidth <= 900) { LABELS.forEach(hideLab); return; }
-    const shown = [];
+    const shown = [], floor = avoidTop() - 14;
     LABELS.forEach(L => {
       pv.copy(L.at).project(camera);
       if (!(pv.z < 1 && Math.abs(pv.x) < 1.02 && Math.abs(pv.y) < 1.02)) { hideLab(L); return; }
@@ -211,11 +226,12 @@
     shown.sort((a, b) => a.x - b.x);
     const half = Math.ceil(shown.length / 2), gap = 10;
     [[shown.slice(0, half), rails.left], [shown.slice(half), rails.right]].forEach(([list, rail]) => {
+      const bottom = Math.max(rail.top + 60, Math.min(rail.bottom, floor));
       list.sort((a, b) => a.y - b.y);
       // slots: centred on the anchors' heights, pushed apart, then pulled back inside the rail
       const ys = list.map(L => L.y - L.h / 2);
       for (let i = 0; i < ys.length; i++) ys[i] = Math.max(ys[i], i ? ys[i - 1] + list[i - 1].h + gap : rail.top);
-      for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.min(ys[i], i < ys.length - 1 ? ys[i + 1] - list[i].h - gap : rail.bottom - list[i].h);
+      for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.min(ys[i], i < ys.length - 1 ? ys[i + 1] - list[i].h - gap : bottom - list[i].h);
       for (let i = 0; i < ys.length; i++) ys[i] = Math.max(ys[i], i ? ys[i - 1] + list[i - 1].h + gap : rail.top);
       const seg = (L, y) => { const x = rail.side < 0 ? rail.x + L.w : rail.x - L.w; return { p: [L.x, L.y], q: [x, y + L.h / 2] }; };
       const slot = list.map((L, i) => i);
@@ -227,7 +243,7 @@
         if (!swapped) break;
       }
       list.forEach((L, i) => {
-        if (ys[slot[i]] + L.h > rail.bottom + 1) { hideLab(L); return; } // no room left on this rail
+        if (ys[slot[i]] + L.h > bottom + 1) { hideLab(L); return; } // no room left on this rail
         const y = ys[slot[i]], bx = rail.side < 0 ? rail.x : rail.x - L.w, s = seg(L, y);
         L.el.style.transform = 'translate(' + bx.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
         L.line.setAttribute('points', s.p[0].toFixed(1) + ',' + s.p[1].toFixed(1) + ' ' + s.q[0].toFixed(1) + ',' + s.q[1].toFixed(1));
@@ -254,15 +270,56 @@
     if (camera.aspect < 1 && s !== SHOTS['1']) pos.sub(tgt).multiplyScalar(Math.min(2.2, 1.25 / camera.aspect)).add(tgt);
     return pos;
   }
-  let shot = null;
-  function goShot(k, instant) { const s = SHOTS[k]; shot = { pos: shotPos(s), tgt: new T.Vector3(...s.tgt), t: 0 }; controls.autoRotate = false; if (instant) { camera.position.copy(shot.pos); controls.target.copy(shot.tgt); shot = null; } }
+  // The tilt-shift keeps a band in focus: the whole overview (machine and console) on shot 1, the classic narrow band on the close-ups.
+  const TILT_CLOSE = { focus: 0.5, band: 0.16 };
+  let tiltWide = { focus: 0.5, band: 0.3 };
+  function setTilt(t) { [tiltH, tiltV].forEach(p => { p.uniforms.focus.value = t.focus; p.uniforms.band.value = t.band; }); }
+  let shot = null, shotKey = '1';
+  function goShot(k, instant) {
+    const s = SHOTS[k]; shotKey = k; setTilt(k === '1' ? tiltWide : TILT_CLOSE);
+    shot = { pos: shotPos(s), tgt: new T.Vector3(...s.tgt), t: 0 }; controls.autoRotate = false;
+    if (instant) { camera.position.copy(shot.pos); controls.target.copy(shot.tgt); shot = null; }
+  }
   controls.addEventListener('start', () => { shot = null; });
+
+  // Shot 1 looks down from SHOT1_DIR and fits boxes into the free part of the screen. setFrame({ wide, tall, small })
+  // gives a list of Box3 for each layout: wide (a landscape window), tall (a 9:16 recording) and small (a phone with the
+  // interface showing). onLayout(fn) hears which one is in use before the fit (the console hides on a phone).
+  const SHOT1_DIR = new T.Vector3(0.2, 0.64, 0.74).normalize();
+  let frames = null, layoutMode = 'wide', onLayoutFn = null;
+  const fitCam = new T.PerspectiveCamera();
+  function fit(boxes, rect) {
+    fitCam.copy(camera);
+    const pts = [], all = new T.Box3(), v = new T.Vector3(), right = new T.Vector3(), up = new T.Vector3();
+    boxes.forEach(b => { all.union(b); for (let i = 0; i < 8; i++) pts.push(new T.Vector3(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z)); });
+    const tgt = all.getCenter(new T.Vector3()), tanV = Math.tan(T.MathUtils.degToRad(camera.fov / 2));
+    let dist = 80, ext = null;
+    const project = () => {
+      fitCam.position.copy(tgt).addScaledVector(SHOT1_DIR, dist); fitCam.lookAt(tgt); fitCam.updateMatrixWorld();
+      ext = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
+      pts.forEach(p => {
+        v.copy(p).project(fitCam);
+        const sx = (v.x + 1) / 2 * viewW, sy = (1 - v.y) / 2 * viewH;
+        ext.x0 = Math.min(ext.x0, sx); ext.x1 = Math.max(ext.x1, sx); ext.y0 = Math.min(ext.y0, sy); ext.y1 = Math.max(ext.y1, sy);
+      });
+    };
+    for (let it = 0; it < 12; it++) {
+      project();
+      const wpp = 2 * dist * tanV / viewH;                  // world units per pixel at the target's distance
+      right.setFromMatrixColumn(fitCam.matrixWorld, 0); up.setFromMatrixColumn(fitCam.matrixWorld, 1);
+      tgt.addScaledVector(right, ((ext.x0 + ext.x1) - (rect.left + rect.right)) / 2 * wpp).addScaledVector(up, ((rect.top + rect.bottom) - (ext.y0 + ext.y1)) / 2 * wpp);
+      dist *= Math.max((ext.x1 - ext.x0) / (rect.right - rect.left), (ext.y1 - ext.y0) / (rect.bottom - rect.top));
+    }
+    project();
+    return { pos: fitCam.position.toArray(), tgt: tgt.toArray(), ext };
+  }
 
   const dock = document.getElementById('dock');
   let viewW = 1, viewH = 1;
   const rails = { left: { x: 30, side: -1, top: 0, bottom: 1 }, right: { x: 1, side: 1, top: 0, bottom: 1 } };
   function resize() {
-    const mobile = window.innerWidth <= 900 && !document.body.classList.contains('hide-ui');
+    const hidden = document.body.classList.contains('hide-ui');
+    const mobile = window.innerWidth <= 900 && !hidden;
     const dockH = mobile ? dock.getBoundingClientRect().height : 0;
     viewW = window.innerWidth; viewH = Math.max(220, window.innerHeight - dockH);
     canvas.style.height = viewH + 'px';
@@ -272,38 +329,122 @@
     camera.aspect = viewW / viewH; camera.updateProjectionMatrix();
     tiltH.uniforms.dir.value.set(1 / (viewW * PR), 0); tiltV.uniforms.dir.value.set(0, 1 / (viewH * PR));
     grade.uniforms.res.value.set(viewW * PR, viewH * PR);
-    let left = 0, right = viewW, top = 0, bottom = viewH;
-    const desktop = window.innerWidth > 900 && !document.body.classList.contains('hide-ui');
+    layoutMode = mobile ? 'small' : hidden && camera.aspect < 1 ? 'tall' : 'wide';
+    if (onLayoutFn) onLayoutFn(layoutMode);
+    let left = 12, right = viewW - 12, top = 12, bottom = viewH - 12;
+    const desktop = window.innerWidth > 900 && !hidden;
     if (desktop) {
-      left = 30;
+      // the free area: right of the page's edge, left of the answer and race panels, above the controls bar when it is pinned open
+      // on a short screen the title is compact and the machine goes below it (the stylesheet hides the sticker there)
+      left = 30; top = viewH <= 820 ? document.querySelector('.title').getBoundingClientRect().bottom + 10 : 70;
       right = Math.min(document.querySelector('.answer').getBoundingClientRect().left, document.querySelector('.race').getBoundingClientRect().left) - 16;
-      top = 70; bottom = document.querySelector('.controls').getBoundingClientRect().top - 12;
-      if (right - left < viewW * 0.3 || bottom - top < viewH * 0.3) { left = 0; right = viewW; top = 0; bottom = viewH; }
+      bottom = document.body.classList.contains('bar-on') ? document.querySelector('.controls').getBoundingClientRect().top - 12 : viewH - 18;
+      if (right - left < viewW * 0.3 || bottom - top < viewH * 0.3) { left = 12; right = viewW - 12; top = 12; bottom = viewH - 12; }
     }
-    const fracW = (right - left) / viewW, fracH = (bottom - top) / viewH;
-    const cx = (left + right) / 2, cy = top + (bottom - top) * 0.55;
+    const cx = (left + right) / 2, cy = (top + bottom) / 2;
     if (desktop) camera.setViewOffset(viewW, viewH, -(cx - viewW / 2), -(cy - viewH / 2), viewW, viewH); else camera.clearViewOffset();
-    const tanV = Math.tan(T.MathUtils.degToRad(camera.fov / 2)), tanH = tanV * camera.aspect;
-    // A tall recording window (9:16, interface hidden) fits the machine's width, not the plinth's.
-    const tall = !desktop && document.body.classList.contains('hide-ui') && camera.aspect < 1;
-    const dist = tall ? 8.6 / tanH : Math.max(11.5 / (tanH * fracW), 9.5 / (tanV * fracH)) * (desktop ? 1 : 1.4);
-    const dir = new T.Vector3(27, 30, 36).normalize();
-    SHOTS['1'].pos = dir.multiplyScalar(dist).add(new T.Vector3(0, 3.0, -1.0)).toArray(); SHOTS['1'].tgt = [0, 3.0, -1.0];
+    if (frames && frames[layoutMode] && frames[layoutMode].length) {
+      const f = fit(frames[layoutMode], { left, right, top, bottom });
+      SHOTS['1'].pos = f.pos; SHOTS['1'].tgt = f.tgt;
+      const y0 = 1 - f.ext.y1 / viewH, y1 = 1 - f.ext.y0 / viewH;        // the fitted boxes in texture v (up)
+      tiltWide = { focus: (y0 + y1) / 2, band: Math.max(0.16, (y1 - y0) / 2 + 0.02) };
+      if (shotKey === '1') setTilt(tiltWide);
+    }
     const titleR = document.querySelector('.title').getBoundingClientRect();
     Object.assign(rails.left, { x: left, top: Math.max(top, titleR.bottom + 16), bottom });
     Object.assign(rails.right, { x: right, top, bottom });
   }
+  function setFrame(f) { frames = f; resize(); }
+  function onLayout(fn) { onLayoutFn = fn; }
   window.addEventListener('resize', resize);
   if (window.ResizeObserver) { const ro = new ResizeObserver(resize); ro.observe(dock); document.querySelectorAll('.panel').forEach(el => ro.observe(el)); }
+
+  /* =========================================================
+     POINTER: things in the scene you can press and drag (the console's controls, a machine's lid), with mouse,
+     touch or pen. grab(handle) registers one:
+       { meshes, cursor, enabled(), hover(on), down(p), move(p), up(p), wheel(dir) }
+     p = { x, y, x0, y0, moved, ray (a THREE.Ray, world space), hit (the first hit, on down) }.
+     A press that lands on one never reaches the orbit controls. block(meshes): solid things that stop the pointer
+     (the console's body), so nothing is grabbed through them. Meshes may use an invisible material as a bigger hit zone.
+     ========================================================= */
+  const caster = new T.Raycaster(), ndc = new T.Vector2();
+  const grabs = [], blockers = [];
+  let hoverG = null, drag = null;
+  const shownDeep = o => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
+  function aim(ev) {
+    const r = canvas.getBoundingClientRect();
+    ndc.set((ev.clientX - r.left) / r.width * 2 - 1, -(ev.clientY - r.top) / r.height * 2 + 1);
+    caster.setFromCamera(ndc, camera);
+  }
+  function pick(ev) {
+    aim(ev);
+    const list = [];
+    grabs.forEach(g => { if (!g.enabled || g.enabled()) g.meshes.forEach(m => { if (shownDeep(m)) list.push(m); }); });
+    blockers.forEach(m => { if (shownDeep(m)) list.push(m); });
+    const hit = caster.intersectObjects(list, false)[0];
+    return hit && hit.object.userData.grab ? { g: hit.object.userData.grab, hit } : null;
+  }
+  function grab(h) { h.meshes.forEach(m => { m.userData.grab = h; }); grabs.push(h); return h; }
+  function block(meshes) { blockers.push(...meshes); }
+  function setHover(g) {
+    if (g === hoverG) return;
+    if (hoverG && hoverG.hover) hoverG.hover(false);
+    hoverG = g; if (g && g.hover) g.hover(true);
+    canvas.style.cursor = g ? (g.cursor || 'pointer') : '';
+  }
+  const pInfo = (ev, extra) => Object.assign({ x: ev.clientX, y: ev.clientY, ray: caster.ray, ev }, extra);
+  window.addEventListener('pointerdown', ev => {
+    if (ev.target !== canvas || drag || ev.button > 0) return;
+    const t = pick(ev); if (!t) return;
+    ev.stopPropagation(); ev.preventDefault();                   // capture phase: the orbit controls never see this press
+    try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* the pointer is already gone */ }
+    drag = { g: t.g, id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, moved: false };
+    controls.enabled = false; setHover(t.g);
+    if (t.g.cursor === 'grab') canvas.style.cursor = 'grabbing';
+    if (t.g.down) t.g.down(pInfo(ev, { x0: ev.clientX, y0: ev.clientY, moved: false, hit: t.hit }));
+  }, true);
+  window.addEventListener('pointermove', ev => {
+    if (drag) {
+      if (ev.pointerId !== drag.id) return;
+      aim(ev);
+      if (Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 5) drag.moved = true;
+      if (drag.g.move) drag.g.move(pInfo(ev, { x0: drag.x0, y0: drag.y0, moved: drag.moved }));
+      return;
+    }
+    if (ev.pointerType !== 'mouse' || ev.target !== canvas || ev.buttons) { if (ev.target !== canvas) setHover(null); return; }
+    const t = pick(ev); setHover(t ? t.g : null);
+  });
+  function endDrag(ev) {
+    if (!drag || ev.pointerId !== drag.id) return;
+    const d = drag; drag = null; controls.enabled = true;
+    aim(ev);
+    if (d.g.up) d.g.up(pInfo(ev, { x0: d.x0, y0: d.y0, moved: d.moved, cancel: ev.type === 'pointercancel' }));
+    if (ev.pointerType !== 'mouse') setHover(null); else canvas.style.cursor = hoverG ? (hoverG.cursor || 'pointer') : '';
+  }
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('pointerleave', () => { if (!drag) setHover(null); });
+  // the scroll wheel over a control turns it instead of zooming
+  window.addEventListener('wheel', ev => {
+    if (ev.target !== canvas || !hoverG || !hoverG.wheel || drag) return;
+    ev.stopPropagation(); ev.preventDefault();
+    hoverG.wheel(ev.deltaY < 0 ? 1 : -1);
+  }, { capture: true, passive: false });
+  // where a pointer ray meets a plane, or null
+  const hitPlane = (ray, plane) => ray.intersectPlane(plane, new T.Vector3());
+  const toScreen = (p, out) => { pv.copy(p).project(camera); out = out || {}; out.x = (pv.x * 0.5 + 0.5) * viewW; out.y = (-pv.y * 0.5 + 0.5) * viewH; return out; };
 
   window.addEventListener('keydown', e => {
     if (document.querySelector('dialog[open]') || e.metaKey || e.ctrlKey || e.altKey) return;
     const tag = (e.target && e.target.tagName) || '';
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if (k === ' ') { if (/INPUT|BUTTON|SUMMARY/.test(tag)) return; e.preventDefault(); actions.launch(); return; }
+    if (/INPUT|SELECT|TEXTAREA/.test(tag) && k.length === 1 && k !== ' ') return;
+    if (k === ' ') { if (/INPUT|BUTTON|SUMMARY|SELECT/.test(tag)) return; e.preventDefault(); actions.launch(); return; }
     if (k === 'c') { controls.autoRotate = !controls.autoRotate; shot = null; }
     else if (k === 'h') actions.toggleUI();
     else if (k === 'm') actions.nextMachine();
+    else if (k === 'o') actions.toggleCase();
+    else if (k === 'b') actions.toggleBar();
     else if (k === 'f') { if (!document.fullscreenElement) { const d = document.documentElement; if (d.requestFullscreen) d.requestFullscreen().catch(() => {}); } else if (document.exitFullscreen) document.exitFullscreen(); }
     else if (SHOTS[k]) goShot(k);
   });
@@ -338,5 +479,5 @@
   }
 
   DSP.actions = actions;
-  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, add, setParent, glow, heat, pool, qb, initLabels, setLab, showLabels, SHOTS, setShots, goShot, resize, run, pause };
+  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, add, setParent, glow, heat, pool, qb, initLabels, setLab, showLabels, setAvoid, SHOTS, setShots, goShot, shotNow: () => shotKey, resize, setFrame, onLayout, layout: () => layoutMode, grab, block, hitPlane, toScreen, view: () => ({ w: viewW, h: viewH }), run, pause };
 })(window.DSP = window.DSP || {});

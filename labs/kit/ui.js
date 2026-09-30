@@ -1,5 +1,5 @@
 /* =========================================================
-   UI: pills, the race panel, toast, dialogs, hide-interface.
+   UI: pills, the race panel, toast, dialogs, hide-interface, the controls bar.
    Works on the markup in a mission's index.html. The words shown are the mission's.
    ========================================================= */
 (function (DSP) {
@@ -64,14 +64,20 @@
   let toastT = 0;
   function toast(s) { const t = document.getElementById('toast'); t.textContent = s; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 4500); }
 
-  /* ---------- hide interface, dialogs ---------- */
+  /* ---------- hide interface, the controls bar, dialogs ---------- */
   function toggleUI() { document.body.classList.toggle('hide-ui'); DSP.engine.resize(); }
   DSP.actions.toggleUI = toggleUI;
+  // On a desktop the console does the work and the bar waits below the screen: B or the Controls bar link pins it
+  // open (the camera makes room), and tabbing into it shows it while it has focus. Phones always show it.
+  const barBtn = document.getElementById('bar-btn');
+  function toggleBar() { const on = document.body.classList.toggle('bar-on'); if (barBtn) barBtn.setAttribute('aria-pressed', on ? 'true' : 'false'); DSP.engine.resize(); }
+  DSP.actions.toggleBar = toggleBar;
+  if (barBtn) barBtn.addEventListener('click', toggleBar);
   document.getElementById('hide-btn').addEventListener('click', toggleUI);
   document.getElementById('restore').addEventListener('click', toggleUI);
   const openDlg = d => { if (d.showModal) d.showModal(); else d.setAttribute('open', ''); };
   document.getElementById('open-info').addEventListener('click', () => openDlg(document.getElementById('info')));
   document.getElementById('open-keys').addEventListener('click', () => openDlg(document.getElementById('keys-dlg')));
 
-  DSP.ui = { pills, syncPills, ticks, buildRace, setRaceThis, renderRace, toast, toggleUI };
+  DSP.ui = { pills, syncPills, ticks, buildRace, setRaceThis, renderRace, toast, toggleUI, toggleBar };
 })(window.DSP = window.DSP || {});

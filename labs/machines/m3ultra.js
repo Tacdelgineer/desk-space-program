@@ -89,15 +89,34 @@
 
     // cooler, lifted off and back (so it doesn't hide the chip): one big copper heatsink, two blowers behind it
     const COOL_Y = 7.0, CZ = PZ - 2.6;
+    const coolG = new T.Group(); group.add(coolG); E.setParent(coolG);
     mesh(rbox(8.2, 0.36, 5.6, 0.08), M.copper, 0, COOL_Y, CZ);
     const fins = []; for (let i = 0; i < 42; i++) fins.push([-3.9 + i * 0.19, COOL_Y + 0.8, CZ]);
     scatter(new T.BoxGeometry(0.05, 1.3, 5.3), M.copper, fins, true);
     const fanA = P.fan(new T.Vector3(-3.4, 9.1, -6.4), 1.05), fanB = P.fan(new T.Vector3(3.4, 9.1, -6.4), 1.05);
+    E.setParent(group);
     const dashM = new T.LineDashedMaterial({ color: 0x9ea4d2, dashSize: 0.25, gapSize: 0.18, transparent: true, opacity: 0.55 });
     [[-3.8, -2.6], [3.8, -2.6], [-3.8, 2.6], [3.8, 2.6]].forEach(([x, z]) => {
       const l = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(x, COOL_Y - 0.2, CZ + z), new T.Vector3(x * 1.2, SUB_Y, PZ + z * 1.6)]), dashM);
       l.computeLineDistances(); E.add(l);
     });
+
+    // the shell: a tall aluminium mini desktop (95 mm, the mug's height), soft rounded edges, a dark seam low down, a
+    // ring of vent holes on top and the spec plate on the front. Stylized, not the real product: no logo, no ports.
+    const S = DSP.shell, lid = new T.Group(); group.add(lid); E.setParent(lid);
+    const H = 8.2, shellM = M.alu.clone(); shellM.color.setHex(0xb4b9c3); shellM.userData.envTuned = true;
+    const hood = mesh(S.block(S.rounded(2.45), 17.1, 17.1, 0.02, H, 0.42), shellM, 0, 0, 0);
+    const seamM = std(0x121318, 0.6, 0.3);
+    mesh(S.band(S.rounded(2.47), 17.14, 17.14, 0.12, 0.08), seamM, 0, 1.6, 0, { noCast: true });
+    const holes = [];
+    [[1.3, 8], [2.2, 14], [3.1, 20]].forEach(([r, n]) => { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + r; holes.push([Math.cos(a) * r, H + 0.005, Math.sin(a) * r - 1.2]); } });
+    scatter(new T.CylinderGeometry(0.14, 0.14, 0.02, 12), seamM, holes, false);
+    mesh(new T.BoxGeometry(2.6, 0.07, 0.05), new T.MeshBasicMaterial({ color: new T.Color(0x27f2d2).multiplyScalar(1.2) }), 0, 1.1, 8.57, { noCast: true });
+    const plate = S.plate({ w: 5.4, h: 3.1, face: 'front', at: [0, 4.6, 8.58] });
+    E.setParent(group);
+    // the mug, at the Mac's scale (197 mm across)
+    S.mug(16.6 / 197, 13.9, -3.6, -Math.PI / 4);
+    const rig = S.rig({ lid, parts: [{ g: coolG, seat: [0, -5.25, 0] }], guides: dashM, glow: [shellM] });
 
     P.tuneEnv();
 
@@ -119,6 +138,7 @@
 
     return {
       group, animate, labels, outP, spillP,
+      shell: { rig, grab: [hood], plate, hint: new T.Vector3(1.5, H, 6.0), what: 'lid' },
       chips: '8 packages', busBits: 1024,
       notes: { bridge: 'two chips joined into one, 32 CPU cores', ssd: 'where models wait', fan: 'spins up under load' }, loadingLabel: 'ssd',
       out: { from: new T.Vector3(3.15, tileTop + 0.05, PZ), spread: [2, 2], mid: new T.Vector3(1.0, 4.4, -4.6), to: new T.Vector3(-0.7, Y0 + 1.1, -7.7) },

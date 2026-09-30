@@ -73,9 +73,16 @@
     scene.traverse(o => { const m = o.material; if (m && m.envMapIntensity !== undefined && !m.userData.envTuned && m !== M.gold && m !== M.foam && m !== M.alu && m !== M.copper && m !== M.plinth) { m.envMapIntensity *= 0.55; m.userData.envTuned = true; } });
   }
 
-  /* ---------- the display stand: plinth, placard, glowing floor edge. Returns setName(text) for the placard ---------- */
-  function stand(placardLeft, placardRight) {
-    mesh(rbox(30, 3, 30, 0.5), M.plinth, 0, -1.5, 0);
+  /* ---------- the display stand: plinth, glowing floor edge, and a name placard on the front unless placard: false.
+     o: { w, d, cx, cz } the plinth's size and centre. Returns setName(text) for the placard ---------- */
+  function stand(placardLeft, placardRight, o) {
+    o = Object.assign({ w: 30, d: 30, cx: 0, cz: 0, placard: true }, o);
+    mesh(rbox(o.w, 3, o.d, 0.5), M.plinth, o.cx, -1.5, o.cz);
+    // thin glowing edge on the floor, front and right
+    const edgeM = new T.MeshBasicMaterial({ color: new T.Color(0x27f2d2).multiplyScalar(0.9) });
+    mesh(new T.BoxGeometry(o.w + 1.2, 0.05, 0.08), edgeM, o.cx, -2.97, o.cz + o.d / 2 + 0.6, { noCast: true });
+    mesh(new T.BoxGeometry(0.08, 0.05, o.d + 1.2), edgeM, o.cx + o.w / 2 + 0.6, -2.97, o.cz, { noCast: true });
+    if (!o.placard) return { setName() {} };
     const draw = right => (x, w, h) => {
       x.clearRect(0, 0, w, h); x.fillStyle = 'rgba(160,168,220,.75)';
       x.font = '500 66px "IBM Plex Mono", monospace'; x.textBaseline = 'middle';
@@ -84,11 +91,7 @@
     };
     const map = canvasTex(2048, 154, draw(placardRight), true);
     const placard = new T.Mesh(new T.PlaneGeometry(18, 1.35), new T.MeshStandardMaterial({ map, transparent: true, roughness: 0.6, metalness: 0.3 }));
-    placard.position.set(0, -1.5, 15.02); scene.add(placard);
-    // thin glowing edge on the floor, front and right
-    const edgeM = new T.MeshBasicMaterial({ color: new T.Color(0x27f2d2).multiplyScalar(0.9) });
-    mesh(new T.BoxGeometry(31.2, 0.05, 0.08), edgeM, 0, -2.97, 15.6, { noCast: true });
-    mesh(new T.BoxGeometry(0.08, 0.05, 31.2), edgeM, 15.6, -2.97, 0, { noCast: true });
+    placard.position.set(o.cx, -1.5, o.cz + o.d / 2 + 0.02); scene.add(placard);
     return { setName(right) { const c = map.image; draw(right)(c.getContext('2d'), c.width, c.height); map.needsUpdate = true; } };
   }
 

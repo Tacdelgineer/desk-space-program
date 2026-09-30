@@ -95,17 +95,48 @@
     P.ceramicCaps(mlcc);
     P.resistors(res);
 
-    // cooler, lifted off: vapour chamber over the die, four heat pipes back to a fin stack, two fans on top
-    const COOL_Y = 5.6;
+    // cooler, lifted off: vapour chamber over the die, four heat pipes back to a fin stack, two fans on top.
+    // While the card is closed the fin stack sits on the card under the cover, so the plate and the fin block move
+    // separately and the heat pipes are laid again between them as they go.
+    const COOL_Y = 5.6, FIN_Z = -4.9, PIPE_DX = [-1.2, -0.4, 0.4, 1.2];
+    const plateG = new T.Group(); group.add(plateG); E.setParent(plateG);
     mesh(rbox(4.6, 0.32, 4.6, 0.08), M.copper, GX, COOL_Y, GZ);
-    [-1.2, -0.4, 0.4, 1.2].forEach((dx, k) => P.heatPipe([[GX + dx, COOL_Y + 0.22, GZ + 1.6], [GX + dx, COOL_Y + 0.22, GZ - 1.6], [GX + dx * 2.6, 6.2 + 0.25 * k, -2.0], [GX + dx * 3.4, 6.2 + 0.25 * k, -7.4]]));
-    const fins = []; for (let i = 0; i < 56; i++) fins.push([-7.15 + i * 0.26, 6.9, -4.9]);
+    const finG = new T.Group(); group.add(finG); E.setParent(finG);
+    const fins = []; for (let i = 0; i < 56; i++) fins.push([-7.15 + i * 0.26, 6.9, FIN_Z]);
     scatter(new T.BoxGeometry(0.05, 1.8, 5.2), M.alu, fins, true);
-    const fanA = P.fan(new T.Vector3(-3.6, 8.1, -4.9), 1.3), fanB = P.fan(new T.Vector3(3.6, 8.1, -4.9), 1.3);
+    const fanA = P.fan(new T.Vector3(-4.3, 8.1, FIN_Z), 1.3), fanB = P.fan(new T.Vector3(4.3, 8.1, FIN_Z), 1.3);
+    E.setParent(group);
+    const pipes = PIPE_DX.map(() => { const m = mesh(new T.BufferGeometry(), M.copper, 0, 0, 0); return m; });
+    function layPipes() {
+      const a = plateG.position, b = finG.position;
+      PIPE_DX.forEach((dx, k) => {
+        const pts = [[GX + dx, COOL_Y + 0.22 + a.y, GZ + 1.6 + a.z], [GX + dx, COOL_Y + 0.22 + a.y, GZ - 1.6 + a.z], [GX + dx * 2.6, 6.2 + 0.25 * k + b.y, -2.0 + b.z], [GX + dx * 3.4, 6.2 + 0.25 * k + b.y, -7.4 + b.z]];
+        pipes[k].geometry.dispose();
+        pipes[k].geometry = new T.TubeGeometry(new T.CatmullRomCurve3(pts.map(q => new T.Vector3(...q))), 60, 0.17, 12);
+      });
+    }
     const dashM = new T.LineDashedMaterial({ color: 0x9ea4d2, dashSize: 0.25, gapSize: 0.18, transparent: true, opacity: 0.55 });
     [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]].forEach(([x, z]) => {
       const l = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(GX + x, COOL_Y - 0.2, GZ + z), new T.Vector3(GX + x * 0.72, DIE_Y + 0.02, GZ + z * 0.76)]), dashM);
       l.computeLineDistances(); E.add(l);
+    });
+
+    // the shell: a charcoal fan cover with two open fan rings (the real fans turn inside), a yellow edge stripe and the
+    // spec plate between the fans. Stylized, not the real card: no logos, no brand shapes. The bracket stays outside.
+    const S = DSP.shell, lid = new T.Group(); group.add(lid); E.setParent(lid);
+    const shroudM = std(0x2a2b31, 0.42, 0.55, { envMapIntensity: 0.8 }); shroudM.userData.envTuned = true;
+    const SX0 = -7.9, SX1 = 8.2, SZ0 = -1.55, SZ1 = 6.35, SCX = (SX0 + SX1) / 2, SCZ = (SZ0 + SZ1) / 2, TOP = 3.95;
+    const shroud = mesh(S.block(S.rounded(0.7), SX1 - SX0, SZ1 - SZ0, 0.47, TOP, 0.16, [[-4.3 - SCX, FIN_Z + 7.5 - SCZ, 2.35], [4.3 - SCX, FIN_Z + 7.5 - SCZ, 2.35]]), shroudM, SCX, 0, SCZ);
+    [-4.3, 4.3].forEach(x => { const r = mesh(new T.TorusGeometry(2.36, 0.07, 10, 64), M.alu, x, TOP, FIN_Z + 7.5); r.rotation.x = Math.PI / 2; });
+    const stripeM = std(0xf2c230, 0.5, 0.1); stripeM.userData.envTuned = true;
+    mesh(new T.BoxGeometry(SX1 - SX0 - 1.4, 0.03, 0.32), stripeM, SCX, TOP + 0.005, SZ1 - 0.55, { noCast: true });
+    const plate = S.plate({ w: 3.3, h: 4.3, face: 'top', at: [0, TOP + 0.01, FIN_Z + 7.5] });
+    E.setParent(group);
+    // the mug, at the card's scale (304 mm long)
+    S.mug(16.2 / 304, 11.3, BZ - 2, -Math.PI / 4);
+    const rig = S.rig({
+      lid, guides: dashM, glow: [shroudM, stripeM], pipes: layPipes,
+      parts: [{ g: plateG, seat: [0, -4.42, 0], y: [0.3, 0.85] }, { g: finG, seat: [0, -4.55, 7.5], y: [0.3, 0.72], z: [0.5, 1] }]
     });
 
     P.tuneEnv();
@@ -121,13 +152,14 @@
       { id: 'gpu', at: new T.Vector3(GX + 0.4, tileTop, GZ + 0.6), title: 'Blackwell GPU: the engine' },
       { id: 'pcie', at: new T.Vector3(-4.6, Y0 + 0.02, BZ + 4.2), title: 'PCIe slot: the loading dock' },
       { id: 'power', at: new T.Vector3(3.9, Y0 + 0.62, BZ - 3.35), title: '12V-2x6 power' },
-      { id: 'fan', at: new T.Vector3(3.6, 8.35, -4.9), title: 'Cooler, lifted off' }
+      { id: 'fan', at: new T.Vector3(4.3, 8.35, -4.9), title: 'Cooler, lifted off' }
     ];
     const animate = DSP.board.lightUp({ mem, gpu, cpu: null, bus, fans: [fanA, fanB], gpuBox: [GX, GZ, DIE_W + 0.25, DIE_D + 0.25, DIE_Y + 0.14], loadFrom: PCIE, loadP, outP, spillP });
     E.setParent(null);
 
     return {
       group, animate, labels, outP, spillP,
+      shell: { rig, grab: [shroud], plate, hint: new T.Vector3(0.1, TOP, 5.4), what: 'cover' },
       chips: '16 chips', busBits: 512,
       notes: { pcie: 'models load from the PC\'s SSD', power: 'up to 575 W', fan: 'spins up under load' }, loadingLabel: 'pcie',
       // answers go back out through the slot to the PC

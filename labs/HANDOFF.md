@@ -27,7 +27,21 @@ Everything below was learned the hard way. Read it before touching the code.
   speed and half the GPU math, drawn as a GPU block half the size; graphite case, hex back wall,
   cooler lifted straight up), RTX Pro 6000 (96 GB, the 5090's chip with 188 of 192 SMs, the same
   1,792 GB/s; a double flow-through card on a gunmetal frame, 32 memory chips, 16 under the board).
-- **Keys:** Space launch, 1–4 camera shots, M next machine, C orbit, H hide UI, F fullscreen.
+- **Outside (Session F, 2026-09-30):** every machine starts closed in a stylized shell (gold desktop box, charcoal two-fan
+  card cover, aluminium mini desktop 95 mm tall, graphite cut-corner mini PC with a hex top, gunmetal workstation cover with
+  a fan at each end; no logos, not the real designs) with a printed spec plate (name, memory, bandwidth). Dragging the lid
+  off, O, or a launch opens it: the lid pops, hangs above the machine, flies off, and the cooler rises from the chip into the
+  exploded view. A new machine comes up closed, then opens. The same coffee mug (82 x 95 mm) stands beside each machine at
+  its real scale, so it looms over the 150 mm boxes and shrinks next to the 30 cm cards. The plinth runs wider on the right
+  for it and has no placard any more.
+- **Mission Control console (kit/deck.js):** a 3D deck on the floor in front of the plinth replaces the bottom bar on a
+  desktop: five pads (machine), a long fader (model size, detents at the five presets, MoE ones named in teal), a jog wheel
+  (crew 1–64, one lit block per request; the GPU blocks on the machine light up as it turns), a lever (16, 8, 4-bit), three
+  toggles (prompt), a launch toggle under a red flip-up cover, needle gauges (GPU math used, memory bus), a 7-segment
+  tokens/s display and a status line. Hover glow, springs on every detent and press. Web MIDI learn (kit/midi.js). The HTML
+  bar stays for phones and keyboards (desktop: B pins it, Tab shows it); record mode keeps the console and hides all HTML.
+- **Keys:** Space launch (opens the machine first), O open or close, 1–4 camera shots, M next machine, C orbit, H hide UI,
+  B controls bar, F fullscreen.
 
 ## Stack and why
 
@@ -71,6 +85,11 @@ Everything below was learned the hard way. Read it before touching the code.
     renderer string says NVIDIA + Vulkan. Chrome's Linux default is OpenGL, so visitors don't hit it. Route the CDN URLs to
     local copies (`npm pack three@0.147.0`, `@fontsource/anton`, `@fontsource/archivo-narrow`,
     `@fontsource/ibm-plex-mono`). With a real GPU it's far faster.
+
+11. **Session F:** `new THREE.Color()` is white (it lit half the console); the stage's key light prints cream, yellow and red
+    near white unless their albedo is darker than the ink, and an upward clearcoat mirrors the RoomEnvironment's ceiling;
+    a lid's round holes must stay inside its outline (a hole crossing the edge silently fails to cut). The framing fits
+    boxes (engine `setFrame`), so a new object in the overview goes into those boxes, not into magic numbers.
 
 ## Speed model (estimates; measured Spark runs replace them where they exist)
 

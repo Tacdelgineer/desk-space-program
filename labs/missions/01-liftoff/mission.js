@@ -3,8 +3,13 @@
    goes load -> reading -> writing -> done. Ties the kit together.
    Five machines (switcher), a model-size handle, a crew dial, and URL presets for filming:
      ?machine=spark|rtx5090|mac|strix|pro6000 &model=q27 (a preset id) or model=45 (billions, dense)
-     &bits=4|8|16 &prompt=q|doc|code &crew=1..64 &shot=1..4 &speed=1|5 &record=1
-   record=1 hides the interface and launches as soon as the model has loaded.
+     &bits=4|8|16 &prompt=q|doc|code &crew=1..64 &shot=1..4 &speed=1|5 &record=1 &open=0|1
+   Every machine starts closed and opens when you drag its lid off, press O or launch; shot=2..4 (a close-up inside)
+   starts it open, and open=1 or open=0 says so outright.
+   record=1 hides the interface (the console stays: it is part of the show), opens the machine and launches as soon
+   as the model has loaded.
+   The console in front of the machine (kit/deck.js) and the controls bar drive the same handlers (section 4), so they
+   stay in step; a MIDI controller can drive the console too (kit/midi.js).
    Live mode (section 6) switches on when live/bridge.mjs serves the page: a chat box that runs a real model
    on the Spark, real memory, power and temperature, and the Benchmark button.
    ========================================================= */
@@ -63,6 +68,7 @@
     if (qm && pick(MODELS, qm)) start0.model = qm;
     else if (qm && isFinite(parseFloat(qm))) { start0.model = 'size'; start0.size = Math.max(HANDLE.minB, Math.min(HANDLE.maxB, parseFloat(qm))); }
     const record = q.get('record') === '1', startShot = /^[1-4]$/.test(q.get('shot') || '') ? q.get('shot') : null;
+    const startOpen = q.get('open') === '1' || (q.get('open') !== '0' && !!startShot && startShot !== '1');
 
     // Changing the selection from code re-syncs the pills too
     const sel = new Proxy(start0, { set(o, k, v) { o[k] = v; ui.syncPills(o); return true; } });
@@ -71,16 +77,54 @@
     const ANSWER_TEXT = 'Short answer: your GPU is waiting on memory, not on math. To write each token, the model reads all of its weights out of memory, every single time. A bigger model means more gigabytes to move per token, and the memory bus can only move so much per second. The GPU finishes its math in a sliver of that time, then sits idle until the next delivery arrives. That is why bandwidth, not compute, sets your writing speed. It is also why mixture-of-experts models feel fast: they read only a small slice of their weights for each token.';
 
     /* =========================================================
-       2. THE MACHINES: built the first time they're shown
+       2. THE MACHINES: built the first time they're shown. Each starts closed in its shell; dragging the lid off,
+          O, or a launch opens it (kit/shell.js rig), and the labels switch from the lid's hint to the parts inside.
        ========================================================= */
-    const stand = DSP.parts.stand('DESK SPACE PROGRAM   MISSION 01: LIFTOFF', DSP.machines[sel.machine].name);
+    // the plinth runs wider on the right for the mug; the console stands on the floor in front, so no placard
+    const stand = DSP.parts.stand('DESK SPACE PROGRAM   MISSION 01: LIFTOFF', DSP.machines[sel.machine].name, { w: 35, d: 23.5, cx: 4.5, cz: -1.3, placard: false });
     const built = {};
-    const machineObj = id => { if (!built[id]) { built[id] = DSP.machines[id].build(); built[id].group.visible = false; } return built[id]; };
+    const plateSpec = id => { const m = pick(MACHINES, id); return { name: WORDS[id].short, mem: m.memGB + ' GB', bw: m.bw.toLocaleString('en-US') + ' GB/s' }; };
     let cur = null, CUR = null, swap = null;
+    function machineObj(id) {
+      if (built[id]) return built[id];
+      const b = built[id] = DSP.machines[id].build();
+      b.id = id; b.group.visible = false;
+      b.shell.plate.print(plateSpec(id));
+      E.grab({ meshes: b.shell.grab, cursor: 'grab', enabled: () => cur === b && !swap && box.k < 0.8, hover: on => { b.lidHot = on; }, down: lidDown, move: lidMove, up: lidUp });
+      return b;
+    }
+
+    // the case: k goes 0 (closed) to 1 (open); to is where it is heading. pending: a launch waits for the case to open.
+    const box = { k: startOpen ? 1 : 0, to: startOpen ? 1 : 0, drag: null, pending: false, openIn: 0 };
+    const OPEN_S = E.reduceMotion ? 0.01 : 1.4, CLOSE_S = E.reduceMotion ? 0.01 : 1.0;
+    const touchy = window.matchMedia && window.matchMedia('(hover: none)').matches;
+    const openCase = on => { box.to = on === false ? 0 : 1; if (!box.to) box.pending = false; };
+    function lidDown() { box.drag = { k0: box.k }; }
+    function lidMove(p) {
+      const lift = Math.max(0, p.y0 - p.y) + 0.5 * Math.abs(p.x - p.x0);   // up lifts it, sideways a little
+      box.k = box.to = Math.min(0.7, box.drag.k0 + lift / (E.view().h * 0.5));
+    }
+    function lidUp(p) {
+      const d = box.drag; box.drag = null; if (!d) return;
+      if (!p.moved) openCase(true); else openCase(box.k > d.k0 + 0.05 || box.k > 0.3);
+    }
+    let caseLabels = '';
+    function stepCase(dt) {
+      if (box.openIn > 0) { box.openIn -= dt; if (box.openIn <= 0) openCase(true); }
+      if (!box.drag && box.k !== box.to) box.k = box.to > box.k ? Math.min(box.to, box.k + dt / OPEN_S) : Math.max(box.to, box.k - dt / CLOSE_S);
+      cur.shell.rig.set(box.k);
+      cur.shell.rig.glow(!!cur.lidHot && box.k < 0.8, dt);
+      const want = swap ? '' : box.k >= 1 ? 'open' : box.k <= 0 ? 'closed' : '';
+      if (want && want !== caseLabels) { caseLabels = want; E.initLabels(want === 'open' ? cur.labels : [{ id: 'lid', at: cur.shell.hint, title: 'Drag the ' + cur.shell.what + ' off' }]); }
+      E.showLabels(!!want);
+      if (box.pending && box.k >= 1 && !swap) { box.pending = false; launch(); }
+    }
+
     function activate(id) {
       cur = machineObj(id); CUR = pick(MACHINES, id);
-      cur.group.visible = true;
-      E.initLabels(cur.labels); E.setShots(cur.shots);
+      cur.group.visible = true; caseLabels = '';
+      cur.shell.rig.set(box.k);
+      E.setShots(cur.shots);
       E.glow.position.set(...cur.glowAt); E.heat.position.set(...cur.heatAt);
       stand.setName(DSP.machines[id].name);
       document.querySelector('.sticker').textContent = WORDS[id].sticker;
@@ -94,9 +138,8 @@
       if (id === CUR.id && !swap) return;
       sel.machine = id; CUR = pick(MACHINES, id); ui.setRaceThis(id); // the specs snap now, the board follows
       document.querySelector('.sticker').textContent = WORDS[id].sticker;
-      if (E.reduceMotion) { cur.group.visible = false; activate(id); applySelection(); return; }
+      if (E.reduceMotion) { cur.group.visible = false; box.k = box.to = 0; activate(id); box.openIn = 0.01; applySelection(); return; }
       swap = { from: cur, to: id, t: 0, flipped: false };
-      E.showLabels(false);
       applySelection();
     }
     function stepSwap(dt) {
@@ -106,19 +149,20 @@
         swap.from.group.position.y = -SINK * k * k;
         if (k >= 1) {
           swap.from.group.visible = false; swap.from.group.position.y = 0;
+          box.k = box.to = 0;                                       // the new machine comes up closed, then opens
           activate(swap.to); cur.group.position.y = -SINK; swap.flipped = true; swap.t = 0;
         }
       } else {
         const k = Math.min(1, swap.t / UP), e = 1 - Math.pow(1 - k, 3);
         cur.group.position.y = -SINK * (1 - e);
-        if (k >= 1) { cur.group.position.y = 0; swap = null; E.showLabels(true); }
+        if (k >= 1) { cur.group.position.y = 0; swap = null; box.openIn = 0.35; }
       }
     }
 
     /* =========================================================
        3. SIMULATION
        ========================================================= */
-    const sim = { raceDone: false, phase: 'loading', t: 0, load: 0, plan: null, others: [], tokens: 0, lastTok: 0, flash: 0, gpu: 0, bus: 0, fan: 0.5, activeSet: null };
+    const sim = { raceDone: false, phase: 'loading', t: 0, load: 0, plan: null, others: [], tokens: 0, lastTok: 0, flash: 0, gpu: 0, bus: 0, fan: 0.5, activeSet: null, preview: 0 };
 
     // keep: the size handle or crew dial moved; stay loaded instead of reloading from the SSD
     function applySelection(keep) {
@@ -137,7 +181,8 @@
       else if (model.table) s += ' Plus a ' + fmtB(model.table) + '-parameter lookup table (the amber cells): it takes <b>' + fmtGB(p.tableGB) + ' GB</b>, but each token reads only a few rows of it.';
       if (p.measured && p.measured.weightsGB != null) s += p.hostTableGB ? ' Together that is the real ' + p.measured.quant + ' file, ' + fmtGB(p.measured.weightsGB) + ' GB.' : ' The ' + fmtGB(p.weightsGB) + ' GB is the real ' + p.measured.quant + ' file.';
       document.getElementById('payload-line').innerHTML = s;
-      syncSize(); syncCrew();
+      syncSize(); syncCrew(); syncDeck();
+      if (armed && !box.pending) disarm();
       setTerm('');
       ui.renderRace(sim); updateLaunchBtn();
       const nRuns = sim.others.filter(o => o.p.fits && o.p.measured).length;
@@ -150,17 +195,25 @@
       b.setAttribute('aria-disabled', sim.plan.fits ? 'false' : 'true');
       b.textContent = sim.phase === 'done' ? 'Launch again' : 'Launch';
     }
+    // Launch from anywhere (the console's switch, Space, the bar's button, a preset): refused when the model doesn't fit,
+    // and a closed machine opens first, then launches. Returns false when refused.
+    let armed = false;
+    const disarm = () => { armed = false; deck.arm(false); };
     function launch() {
-      if (live.on) { if (liveRunning()) return; leaveLive(); }
-      if (sim.phase === 'reading' || sim.phase === 'writing') return;
+      if (live.on) { if (liveRunning()) return true; leaveLive(); }
+      if (sim.phase === 'reading' || sim.phase === 'writing') return true;
       const p = sim.plan, w = WORDS[CUR.id];
       if (!p.fits) {
         const why = p.weightsGB > p.usable ? 'Try 4-bit, a smaller model or another machine.' : 'Try a smaller crew or a shorter prompt.';
-        ui.toast('This needs ' + fmtGB(p.needGB) + ' GB and ' + w.the + ' has ' + p.usable + ' GB free. ' + why); return;
+        ui.toast('This needs ' + fmtGB(p.needGB) + ' GB and ' + w.the + ' has ' + p.usable + ' GB free. ' + why);
+        deck.refuse(); return false;
       }
+      armed = true; deck.arm(true);
+      if (box.k < 1 || swap) { box.pending = true; openCase(true); return true; }
       if (sim.phase === 'loading') sim.load = 1;
       sim.phase = 'reading'; sim.t = 0; sim.tokens = 0; sim.lastTok = 0; sim.raceDone = false; cur.outP.clear();
       setTerm(''); document.getElementById('race-note').textContent = '';
+      return true;
     }
 
     const termEl = document.getElementById('term');
@@ -178,9 +231,12 @@
     }
 
     // The phases and the numbers, then the machine lights up to match (machines/*.js, kit/board.js)
-    let launchedForRecord = false;
+    let launchedForRecord = false, openedForRecord = false;
     function updateSim(dt, time) {
       if (swap) stepSwap(dt);
+      stepCase(dt);
+      deck.update(dt);
+      if (record && !openedForRecord && time > 0.7) { openedForRecord = true; openCase(true); }
       if (live.on) return updateLive(dt, time);
       const p = sim.plan, speed = pick(SPEEDS, sel.speed).k, model = curModel();
       if (sim.phase === 'loading') { sim.load = Math.min(1, sim.load + dt / 1.6); if (sim.load >= 1) sim.phase = 'ready'; }
@@ -200,7 +256,7 @@
         const whole = Math.floor(sim.tokens);
         if (whole > sim.lastTok) { const n = whole - sim.lastTok; sim.lastTok = whole; tokenFx(n, model); }
         busT = p.busWrite; gpuT = p.busyWrite;
-        if (sim.tokens >= ANSWER) { sim.phase = 'done'; updateLaunchBtn(); document.getElementById('race-note').textContent = WORDS[CUR.id].short + ' is done. The race keeps going until every machine finishes.'; }
+        if (sim.tokens >= ANSWER) { sim.phase = 'done'; updateLaunchBtn(); disarm(); document.getElementById('race-note').textContent = WORDS[CUR.id].short + ' is done. The race keeps going until every machine finishes.'; }
       }
       settle(gpuT, busT, dt, time, model);
     }
@@ -208,6 +264,7 @@
       sim.gpu += (gpuT - sim.gpu) * Math.min(1, dt * 6);
       sim.bus += (busT - sim.bus) * Math.min(1, dt * 6);
       sim.flash *= Math.exp(-dt * 16);
+      sim.preview = Math.max(0, sim.preview - dt * 0.7);
       sim.fan += ((0.5 + sim.gpu * 3 + sim.bus * 0.8) - sim.fan) * Math.min(1, dt * 1.5);
       cur.animate(sim, model, dt, time);
     }
@@ -240,6 +297,10 @@
       if (key === 'machine') { switchMachine(sel.machine); return; }
       applySelection();
     };
+    // the console calls these too
+    const pickMachine = id => { if (live.on && !liveRunning()) leaveLive(); switchMachine(id); };
+    const pickPrec = id => { if (sel.prec !== id) { sel.prec = id; onPick('prec'); } };
+    const pickPrompt = id => { if (sel.prompt !== id) { sel.prompt = id; onPick('prompt'); } };
     ui.pills('pick-machine', MACHINES, sel, 'machine', onPick);
     ui.pills('pick-model', MODELS, sel, 'model', onPick); ui.pills('pick-prec', PRECS, sel, 'prec', onPick);
     ui.pills('pick-prompt', PROMPTS, sel, 'prompt', onPick); ui.pills('pick-speed', SPEEDS, sel, 'speed', onPick);
@@ -257,12 +318,14 @@
       sizeRead.textContent = fmtB(m.total) + (m.moe ? ' MoE' : '');
       sizeEl.setAttribute('aria-valuetext', m.name);
     }
-    sizeEl.addEventListener('input', () => {
+    // v on the handle's 0-1000 scale; id: a preset the console's fader has settled in (its detents include the MoE ones)
+    function pickSize(v, id) {
       if (live.on && !liveRunning()) leaveLive();
-      const v = +sizeEl.value, snap = MODELS.find(m => !m.moe && Math.abs(toV(m.total) - v) <= 12);
+      const snap = id ? pick(MODELS, id) : MODELS.find(m => !m.moe && Math.abs(toV(m.total) - v) <= 12);
       if (snap) sel.model = snap.id; else { sel.model = 'size'; sel.size = toB(v); }
       applySelection(true);
-    });
+    }
+    sizeEl.addEventListener('input', () => pickSize(+sizeEl.value));
 
     // crew dial: 1 to 64 requests at once, log scale, with marks where the GPU maxes out and memory runs out
     const crewEl = document.getElementById('crew'), crewRead = document.getElementById('crew-read'), crewNote = document.getElementById('crew-note');
@@ -279,7 +342,39 @@
       crewNote.textContent = words.length ? words.join(', ') : 'no limit before ' + CREW_MAX;
       crewNote.className = 'dial-note' + ((p.gpuMax || !p.fits) ? ' hit' : '');
     }
-    crewEl.addEventListener('input', () => { if (live.on && !liveRunning()) leaveLive(); sel.crew = vToC(+crewEl.value); applySelection(true); });
+    function pickCrew(n) {
+      if (live.on && !liveRunning()) leaveLive();
+      if (n === sel.crew) return;
+      sel.crew = n; if (sim.phase !== 'reading' && sim.phase !== 'writing') sim.preview = 1;   // the GPU blocks show what this crew would use
+      applySelection(true);
+    }
+    crewEl.addEventListener('input', () => pickCrew(vToC(+crewEl.value)));
+
+    /* ---------- the console (kit/deck.js): same handlers as the bar ---------- */
+    const DECK_NAMES = { g4: 'GEMMA E4B', q36: '35B MoE', q27: '27B', flash: 'FLASH-NEXT', max: 'MAX' };
+    const deck = DSP.deck.build({
+      at: [5.2, -3, 17.0], scale: 0.9,
+      machines: MACHINES.map(m => ({ id: m.id, short: WORDS[m.id].short })),
+      models: MODELS.filter(m => m.total <= HANDLE.maxB).map(m => ({ id: m.id, t: toV(m.total) / 1000, moe: m.moe, label: DECK_NAMES[m.id] || m.short })),
+      prompts: PROMPTS, precs: PRECS, crewMax: CREW_MAX,
+      on: {
+        machine: pickMachine, prec: pickPrec, prompt: pickPrompt, launch,
+        size: (t, id) => pickSize(t * 1000, id),
+        crew: n => pickCrew(n),
+        learnPick: (id, name) => midi.pick(id, name)
+      }
+    });
+    function syncDeck() {
+      const p = sim.plan;
+      deck.set({ machine: sel.machine, t: toV(curModel().total) / 1000, crew: sel.crew, crewGpu: p.crewGpu, crewMem: p.crewMem, prec: sel.prec, prompt: sel.prompt });
+    }
+    const midi = DSP.midi.attach({ button: document.getElementById('midi-btn'), deck, toast: ui.toast });
+    // the camera fits the machine, its mug and the console (wide), the machine and the console (a 9:16 recording), or
+    // the machine alone (a phone, where the controls bar stands in for the console)
+    const B3 = (a, b) => new T.Box3(new T.Vector3(...a), new T.Vector3(...b));
+    const MACHINE_BOX = B3([-8.8, -0.2, -8.8], [8.8, 10.2, 8.8]), MUG_BOX = B3([10.5, 0, -8.6], [21.4, 10.6, 2.2]);
+    E.onLayout(mode => { deck.root.visible = mode !== 'small'; });
+    E.setAvoid(deck.root);
 
     function finishNote() {
       const fits = sim.others.filter(o => o.p.fits);
@@ -314,8 +409,9 @@
       let st = '', cls = '';
       if (swap) { st = 'Switching to the ' + w.short; }
       else if (!p.fits && sim.load >= 1) { st = 'Doesn\'t fit in memory'; cls = 'bad'; }
+      else if (box.pending) { st = 'Opening the ' + cur.shell.what; cls = 'go'; }
       else if (sim.phase === 'loading') { st = (cur.loadingLabel === 'pcie' ? 'Loading over PCIe ' : 'Loading from the SSD ') + Math.floor(sim.load * 100) + '%'; }
-      else if (sim.phase === 'ready') { st = 'Ready for launch'; cls = 'go'; }
+      else if (sim.phase === 'ready') { st = box.k === 0 && touchy && window.innerWidth <= 900 ? 'Ready: tap the ' + cur.shell.what + ' or launch' : 'Ready for launch'; cls = 'go'; }
       else if (sim.phase === 'reading') { st = 'Reading ' + (crew > 1 ? crew + ' prompts' : 'your prompt') + ', T-minus ' + fmtS(Math.max(0, p.readS - sim.t)); cls = 'hot'; }
       else if (sim.phase === 'writing') { st = sim.tokens < 3 ? 'Liftoff: first token' : 'Writing, ' + Math.floor(sim.tokens) + ' of ' + ANSWER + ' tokens'; cls = 'go'; }
       else if (sim.phase === 'done') { st = 'Done in ' + fmtS(p.totalS); cls = 'go'; }
@@ -340,7 +436,11 @@
       bigTag.hidden = !tag;
       if (tag && bigTag.textContent !== tag) { bigTag.textContent = tag; bigTag.classList.toggle('rep', tag === 'reported'); }
       if (sl.textContent !== line) sl.textContent = line;
+      const tpsNow = !p.fits ? null : sim.phase === 'reading' ? p.readTps : sim.phase === 'writing' || sim.phase === 'done' ? (crew > 1 ? p.totalTps : p.writeTps) : null;
+      const M_ = curModel();
+      deck.show({ gpu: g, bus: b, tps: tpsNow, lcd: (M_.id === 'size' ? M_.short + ' dense' : M_.name) + '  ' + sel.prec + '-bit  ' + fmtGB(p.weightsGB) + ' GB  |  ' + st });
       // labels
+      E.setLab('lid', touchy ? 'or tap it' : 'or press O', 'go');
       const used = Math.min(p.needGB, p.usable);
       E.setLab('mem', p.fits ? cur.chips + ', ' + fmtGB(used) + ' of ' + p.usable + ' GB used' : 'Too small: needs ' + fmtGB(p.needGB) + ' GB', p.fits ? 'go' : 'bad');
       E.setLab('bus', cur.busBits.toLocaleString('en-US') + '-bit, ' + CUR.bw.toLocaleString('en-US') + ' GB/s, ' + pct(b) + ' busy', b > 0.9 ? 'go' : '');
@@ -352,6 +452,7 @@
 
     DSP.actions.launch = launch;
     DSP.actions.nextMachine = () => switchMachine(MACHINES[(MACHINES.indexOf(CUR) + 1) % MACHINES.length].id);
+    DSP.actions.toggleCase = () => { if (!swap) openCase(box.to < 1); };
     document.getElementById('launch').addEventListener('click', launch);
 
     /* =========================================================
@@ -440,6 +541,7 @@
         line = 'First token after ' + fmtS(f.ttftS) + ' (' + f.promptN + ' prompt tokens read at ' + fmtT(f.ppTps) + ' per second), then ' + f.genN + ' tokens in ' + fmtS(f.genMs / 1000) + '.';
       }
       setText('bignum', n); setText('bigunit', u); setText('speedline', line); bigTag.hidden = !tag;
+      deck.show({ gpu: ph === 'reading' ? 1 : ph === 'writing' ? sim.plan.busyWrite : 0, bus: ph === 'writing' ? sim.plan.busWrite : ph === 'reading' ? sim.plan.busRead : 0, tps: ph === 'writing' || ph === 'done' ? (r.final && r.final.tgTps) || r.tps : null, lcd: 'Live  ' + M.name + '  |  ' + st });
       const lm = live.models.find(m => m.id === ((r && r.model) || sel.model));
       if (lm && lm.installed && s) {
         const hint = M.name + ', ' + lm.quant + ' file: <b>' + fmtGB(lm.weightsGB) + ' GB</b>' + (lm.tableGB ? ', of which <b>' + fmtGB(lm.tableGB) + ' GB</b> is the lookup table, kept in CPU memory and mapped from the SSD' : '') +
@@ -466,6 +568,7 @@
     async function startLive(kind, modelId, prompt) {
       if (liveRunning() || (live.run && live.run.kind === 'bench' && live.run.phase !== 'done' && live.run.phase !== 'error')) return;
       if (sel.machine !== 'spark') switchMachine('spark');
+      openCase(true); armed = true; deck.arm(true);
       enterLive();
       if (modelId && pick(MODELS, modelId)) sel.model = modelId;
       sel.prec = '4'; sel.crew = 1; if (kind === 'chat') sel.prompt = 'q';
@@ -481,7 +584,7 @@
           const parts = (rest + dec.decode(value, { stream: true })).split('\n\n'); rest = parts.pop();
           for (const part of parts) { const line = part.split('\n').find(l => l.startsWith('data:')); if (line) onLiveEvent(JSON.parse(line.slice(5))); }
         }
-      } catch (e) { ui.toast('Live: ' + e.message); if (live.run) live.run.phase = 'error'; sim.phase = 'ready'; }
+      } catch (e) { ui.toast('Live: ' + e.message); if (live.run) live.run.phase = 'error'; sim.phase = 'ready'; disarm(); }
       finally {
         if (live.run && live.run.phase !== 'done') { if (live.run.phase !== 'error') live.run.phase = 'done'; }
         chatEl.querySelector('button').disabled = benchBtn.disabled = false;
@@ -505,8 +608,8 @@
           r.tLast = now; if (r.n > 1) r.tps = (r.n - 1) / ((r.tLast - r.tFirst) / 1000);
           if (live.on) tokenFx(1, curModel());
           break;
-        case 'done': r.final = e; r.phase = 'done'; sim.phase = 'done'; sim.tokens = r.n; break;
-        case 'error': ui.toast(e.message); r.phase = 'error'; sim.phase = 'ready'; break;
+        case 'done': r.final = e; r.phase = 'done'; sim.phase = 'done'; sim.tokens = r.n; disarm(); break;
+        case 'error': ui.toast(e.message); r.phase = 'error'; sim.phase = 'ready'; disarm(); break;
         case 'bench': onBench(e); break;
       }
     }
@@ -583,11 +686,18 @@
        5. GO
        ========================================================= */
     if (record) document.body.classList.add('hide-ui');
-    E.resize();
-    E.camera.position.set(...E.SHOTS['1'].pos);
+    E.setFrame({ wide: [MACHINE_BOX, MUG_BOX, deck.box], tall: [MACHINE_BOX, deck.box], small: [MACHINE_BOX] });
+    E.camera.position.set(...E.SHOTS['1'].pos); E.controls.target.set(...E.SHOTS['1'].tgt);
     applySelection();
-    if (startShot) E.goShot(startShot, true);
+    E.goShot(startShot || '1', true);
+    // canvas text was drawn with fallback fonts; print it again once the web fonts are in
+    if (document.fonts && document.fonts.load) {
+      Promise.all(['40px Anton', '500 20px "IBM Plex Mono"', '700 20px "Archivo Narrow"'].map(f => document.fonts.load(f))).then(r => {
+        if (!r.some(x => x && x.length)) return;
+        deck.redraw(); Object.keys(built).forEach(id => built[id].shell.plate.print(plateSpec(id)));
+      }, () => {});
+    }
     E.run(updateSim, updateUI);
-    window.__lab = { launch, sim, sel, applySelection, switchMachine, busy: () => !!swap, goShot: E.goShot, live, startLive };
+    window.__lab = { launch, sim, sel, applySelection, switchMachine, busy: () => !!swap, goShot: E.goShot, live, startLive, deck, box, openCase };
   }
 })(window.DSP = window.DSP || {});

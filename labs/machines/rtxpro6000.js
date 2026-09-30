@@ -115,16 +115,33 @@
 
     // cooler, lifted off: a vapour chamber over the GPU, four heat pipes out to a fin stack at each end, a fan on each
     const COOL_Y = 6.2;
+    const coolG = new T.Group(); group.add(coolG); E.setParent(coolG);
     mesh(rbox(4.6, 0.3, 4.6, 0.08), M.copper, GX, COOL_Y, GZ);
     [-1.2, -0.4, 0.4, 1.2].forEach(dz => [FL, FR].forEach(fx => P.heatPipe([[GX + Math.sign(fx) * 1.4, COOL_Y + 0.2, GZ + dz], [GX + Math.sign(fx) * 2.9, COOL_Y + 0.4, GZ + dz], [fx - Math.sign(fx) * 1.2, COOL_Y + 0.8, GZ + dz], [fx + Math.sign(fx) * 1.3, COOL_Y + 0.85, GZ + dz]], 0.15)));
     const fins = []; [FL, FR].forEach(fx => { for (let i = 0; i < 26; i++) fins.push([fx - 1.55 + i * 0.124, COOL_Y + 0.85, BZ]); });
     scatter(new T.BoxGeometry(0.04, 1.7, 6.6), M.alu, fins, true);
     const fanL = P.fan(new T.Vector3(FL, COOL_Y + 2.05, BZ), 0.95), fanR = P.fan(new T.Vector3(FR, COOL_Y + 2.05, BZ), 0.95);
+    E.setParent(group);
     const dashM = new T.LineDashedMaterial({ color: 0x9ea4d2, dashSize: 0.25, gapSize: 0.18, transparent: true, opacity: 0.55 });
     [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]].forEach(([x, z]) => {
       const l = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(GX + x, COOL_Y - 0.2, GZ + z), new T.Vector3(GX + x * 0.72, DIE_Y + 0.02, GZ + z * 0.76)]), dashM);
       l.computeLineDistances(); E.add(l);
     });
+
+    // the shell: a gunmetal workstation cover, a fan ring at each end over the fin stacks, teal lines along the long
+    // edges and the spec plate in the middle. Stylized, not the real card: no logos, no brand shapes.
+    const S = DSP.shell, lid = new T.Group(); group.add(lid); E.setParent(lid);
+    const shroudM = std(0x3b3f48, 0.36, 0.75, { envMapIntensity: 0.8 }); shroudM.userData.envTuned = true;
+    const SX0 = -8.05, SX1 = 8.15, SZ0 = BZ - 3.85, SZ1 = BZ + 3.4, SCX = (SX0 + SX1) / 2, SCZ = (SZ0 + SZ1) / 2, TOP = 3.75;
+    const shroud = mesh(S.block(S.rounded(0.55), SX1 - SX0, SZ1 - SZ0, 0.42, TOP, 0.14, [[FL - SCX, BZ - SCZ, 1.66], [FR - SCX, BZ - SCZ, 1.66]]), shroudM, SCX, 0, SCZ);
+    [FL, FR].forEach(x => { const r = mesh(new T.TorusGeometry(1.67, 0.06, 10, 56), M.alu, x, TOP, BZ); r.rotation.x = Math.PI / 2; });
+    const lineM = new T.MeshBasicMaterial({ color: new T.Color(0x27f2d2).multiplyScalar(0.9) });
+    [SZ0 + 0.45, SZ1 - 0.45].forEach(z => mesh(new T.BoxGeometry(FR - FL - 4.0, 0.02, 0.1), lineM, (FL + FR) / 2, TOP + 0.005, z, { noCast: true }));
+    const plate = S.plate({ w: 5.2, h: 3.0, face: 'top', at: [(FL + FR) / 2, TOP + 0.01, BZ - 0.2] });
+    E.setParent(group);
+    // the mug, at the card's scale (304 mm long)
+    S.mug(16.2 / 304, 11.25, BZ - 2, -Math.PI / 4);
+    const rig = S.rig({ lid, parts: [{ g: coolG, seat: [0, -5.03, 0] }], guides: dashM, glow: [shroudM] });
 
     P.tuneEnv();
 
@@ -146,6 +163,7 @@
 
     return {
       group, animate, labels, outP, spillP,
+      shell: { rig, grab: [shroud], plate, hint: new T.Vector3((FL + FR) / 2, TOP, SZ1 - 0.6), what: 'cover' },
       chips: '32 chips, 16 underneath', busBits: 512,
       notes: { pcie: 'models load from the PC\'s SSD', power: 'up to 600 W', fan: 'two fans, the air flows through' }, loadingLabel: 'pcie',
       // answers go back out through the slot to the PC

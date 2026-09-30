@@ -17,6 +17,9 @@
 //   SHOOT_UI=1            keep the interface (panels, labels) in the picture
 //   SHOOT_PHASE=reading   halfway through reading the prompt instead (use a long prompt: ?prompt=doc)
 //   SHOOT_PHASE=midwrite  halfway through writing the answer (fast machines finish within the usual 3 s)
+//   SHOOT_CASE=closed     the machine still closed (no launch); =opening: the lid halfway off; =open: open, not launched.
+//                         Without it the page launches, which opens the machine first, then runs.
+//   SHOOT_EVAL='js'       run this in the page just before the picture (e.g. __lab.deck.pose({ hover: 'fader' }))
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -25,7 +28,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const [W, H] = (process.env.SHOOT_SIZE || '1920x1080').split('x').map(Number), STEP_MS = 1000 / 30, WRITING_FRAMES = 90;
-const KEEP_UI = !!process.env.SHOOT_UI, PHASE = process.env.SHOOT_PHASE || 'writing';
+const KEEP_UI = !!process.env.SHOOT_UI, PHASE = process.env.SHOOT_PHASE || 'writing', CASE = process.env.SHOOT_CASE || '', EVAL = process.env.SHOOT_EVAL || '';
 const CACHE = path.join(os.tmpdir(), 'dsp-shoot-cache');
 
 const LAUNCH = process.env.SHOOT_GPU
@@ -83,17 +86,22 @@ async function shoot(pagePath, outDir, shots) {
     await page.waitForTimeout(1000);                       // the loading curtain fades in real time
     const hidden = await page.evaluate(() => document.body.classList.contains('hide-ui'));
     if (hidden === KEEP_UI) await page.keyboard.press('h');  // hide the interface (record=1 already has)
-    await page.evaluate(([dt, n, phase]) => {
+    await page.evaluate(([dt, n, phase, kase]) => {
+      if (kase === 'closed') { __step(n, dt); return; }
+      if (kase === 'opening') { __step(60, dt); __lab.openCase(true); for (let i = 0; __lab.box.k < 0.42 && i < 600; i++) __step(1, dt); return; }
+      if (kase === 'open') { __lab.openCase(true); for (let i = 0; __lab.box.k < 1 && i < 600; i++) __step(1, dt); __step(n, dt); return; }
       __lab.launch();
+      for (let i = 0; __lab.box.pending && i < 600; i++) __step(1, dt);   // a closed machine opens before it launches
       if (phase === 'reading') { for (let i = 0; __lab.sim.phase === 'reading' && __lab.sim.t < __lab.sim.plan.readS / 2 && i < 30000; i++) __step(1, dt); return; }
       if (phase === 'midwrite') { for (let i = 0; (__lab.sim.phase === 'reading' || __lab.sim.tokens < 75) && i < 30000; i++) __step(1, dt); return; }
       for (let i = 0; __lab.sim.phase !== 'writing' && i < 3000; i++) __step(1, dt);
       __step(n, dt);
-    }, [STEP_MS, WRITING_FRAMES, PHASE]);
+    }, [STEP_MS, WRITING_FRAMES, PHASE, CASE]);
     await page.setViewportSize({ width: W, height: H });
     await page.waitForTimeout(400);
     await page.evaluate(dt => __step(2, dt), STEP_MS);      // let resize() settle at full size
     await page.evaluate(([key, dt]) => { __lab.goShot(key, true); __step(3, dt); }, [k, STEP_MS]);
+    if (EVAL) await page.evaluate(([code, dt]) => { (0, eval)(code); __step(12, dt); }, [EVAL, STEP_MS]);
     const info = await page.evaluate(() => ({ phase: __lab.sim.phase, tokens: Math.floor(__lab.sim.tokens), gl: (() => { const g = document.createElement('canvas').getContext('webgl2'), e = g && g.getExtension('WEBGL_debug_renderer_info'); return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : '?'; })() }));
     const file = path.join(outDir, `shot-${k}.png`);
     await page.screenshot({ path: file });
