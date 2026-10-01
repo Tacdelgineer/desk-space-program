@@ -74,15 +74,17 @@
   }
 
   /* ---------- the display stand: plinth, glowing floor edge, and a name placard on the front unless placard: false.
-     o: { w, d, cx, cz } the plinth's size and centre. Returns setName(text) for the placard ---------- */
+     o: { w, d, cx, cz } the plinth's size and centre. Returns { group, setName(text) } (the placard's name) ---------- */
   function stand(placardLeft, placardRight, o) {
     o = Object.assign({ w: 30, d: 30, cx: 0, cz: 0, placard: true }, o);
+    const group = new T.Group(); scene.add(group); E.setParent(group);
+    const done = r => { E.setParent(null); r.group = group; return r; };
     mesh(rbox(o.w, 3, o.d, 0.5), M.plinth, o.cx, -1.5, o.cz);
     // thin glowing edge on the floor, front and right
     const edgeM = new T.MeshBasicMaterial({ color: new T.Color(0x27f2d2).multiplyScalar(0.9) });
     mesh(new T.BoxGeometry(o.w + 1.2, 0.05, 0.08), edgeM, o.cx, -2.97, o.cz + o.d / 2 + 0.6, { noCast: true });
     mesh(new T.BoxGeometry(0.08, 0.05, o.d + 1.2), edgeM, o.cx + o.w / 2 + 0.6, -2.97, o.cz, { noCast: true });
-    if (!o.placard) return { setName() {} };
+    if (!o.placard) return done({ setName() {} });
     const draw = right => (x, w, h) => {
       x.clearRect(0, 0, w, h); x.fillStyle = 'rgba(160,168,220,.75)';
       x.font = '500 66px "IBM Plex Mono", monospace'; x.textBaseline = 'middle';
@@ -91,12 +93,13 @@
     };
     const map = canvasTex(2048, 154, draw(placardRight), true);
     const placard = new T.Mesh(new T.PlaneGeometry(18, 1.35), new T.MeshStandardMaterial({ map, transparent: true, roughness: 0.6, metalness: 0.3 }));
-    placard.position.set(o.cx, -1.5, o.cz + o.d / 2 + 0.02); scene.add(placard);
-    return { setName(right) { const c = map.image; draw(right)(c.getContext('2d'), c.width, c.height); map.needsUpdate = true; } };
+    placard.position.set(o.cx, -1.5, o.cz + o.d / 2 + 0.02); add(placard);
+    return done({ setName(right) { const c = map.image; draw(right)(c.getContext('2d'), c.width, c.height); map.needsUpdate = true; } });
   }
 
   /* ---------- a board: canvas texture with random routed traces and vias, then draw(helpers) for the machine's own
-     buses and silkscreen. w x d in scene units; helpers take scene coordinates relative to the board centre. ---------- */
+     buses and silkscreen (o.under(helpers) draws before the random traces). w x d in scene units; helpers take scene
+     coordinates relative to the board centre. ---------- */
   function pcb(w, d, draw, o) {
     o = Object.assign({ base: '#0b1220', traces: 260, vias: 500, S: 2048 }, o);
     const SX = o.S, SZ = Math.round(o.S * d / w), k = SX / w;
@@ -119,6 +122,9 @@
       [[c, gold], [m, '#fff'], [r, 'rgb(60,60,60)']].forEach(([ctx, col]) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px(x), pz(z), rad, 0, 7); ctx.fill(); });
       if (hole) { c.fillStyle = '#05070c'; c.beginPath(); c.arc(px(x), pz(z), hole, 0, 7); c.fill(); m.fillStyle = '#000'; m.beginPath(); m.arc(px(x), pz(z), hole, 0, 7); m.fill(); }
     }
+    const silk = { box(x, z, bw, bd) { c.strokeStyle = 'rgba(225,230,255,.55)'; c.lineWidth = 3; c.strokeRect(px(x - bw / 2), pz(z - bd / 2), bw * k, bd * k); },
+      text(t, x, z, size) { c.fillStyle = 'rgba(225,230,255,.6)'; c.font = (size > 32 ? '500 ' : '600 ') + (size || 30) + 'px "IBM Plex Mono", monospace'; c.fillText(t, px(x), pz(z)); } };
+    if (o.under) o.under({ trace, dot, px, pz, ctx: c, silk });       // drawn under the random traces (copper pours, the bus)
     const dirs = [[1, 0], [0.707, 0.707], [0, 1], [-0.707, 0.707], [-1, 0], [-0.707, -0.707], [0, -1], [0.707, -0.707]];
     for (let i = 0; i < o.traces; i++) {
       let x = (Math.random() - 0.5) * (w - 1), z = (Math.random() - 0.5) * (d - 1), dd = Math.floor(Math.random() * 4) * 2;
@@ -131,8 +137,6 @@
       dot(pts[pts.length - 1][0], pts[pts.length - 1][1], 5, 2.2);
     }
     for (let i = 0; i < o.vias; i++) dot((Math.random() - 0.5) * (w - 0.6), (Math.random() - 0.5) * (d - 0.6), 4, 1.8);
-    const silk = { box(x, z, bw, bd) { c.strokeStyle = 'rgba(225,230,255,.55)'; c.lineWidth = 3; c.strokeRect(px(x - bw / 2), pz(z - bd / 2), bw * k, bd * k); },
-      text(t, x, z, size) { c.fillStyle = 'rgba(225,230,255,.6)'; c.font = (size > 32 ? '500 ' : '600 ') + (size || 30) + 'px "IBM Plex Mono", monospace'; c.fillText(t, px(x), pz(z)); } };
     if (draw) draw({ trace, dot, px, pz, ctx: c, silk });
     const mk = cv => { const t = new T.CanvasTexture(cv); t.anisotropy = Math.min(8, E.renderer.capabilities.getMaxAnisotropy()); return t; };
     const map = mk(cc); map.encoding = T.sRGBEncoding;

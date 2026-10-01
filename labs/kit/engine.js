@@ -11,8 +11,9 @@
   if (T.ColorManagement) T.ColorManagement.legacyMode = false;
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Late-bound buttons the keys call. The mission sets launch, nextMachine and toggleCase, ui.js sets toggleUI and toggleBar.
-  const actions = { launch() {}, nextMachine() {}, toggleUI() {}, toggleCase() {}, toggleBar() {} };
+  // Late-bound buttons the keys call. The mission sets launch, nextMachine, toggleCase, toggleShowroom, toggleRoom and
+  // escape; ui.js sets toggleUI and toggleBar.
+  const actions = { launch() {}, nextMachine() {}, toggleUI() {}, toggleCase() {}, toggleBar() {}, toggleShowroom() {}, toggleRoom() {}, escape() {} };
 
   /* =========================================================
      RENDERER, SCENE, CAMERA, POST
@@ -497,6 +498,9 @@
     else if (k === 'm') actions.nextMachine();
     else if (k === 'o') actions.toggleCase();
     else if (k === 'b') actions.toggleBar();
+    else if (k === 'v') actions.toggleShowroom();
+    else if (k === 'r') actions.toggleRoom();
+    else if (k === 'Escape') actions.escape();
     else if (k === 'f') { if (!document.fullscreenElement) { const d = document.documentElement; if (d.requestFullscreen) d.requestFullscreen().catch(() => {}); } else if (document.exitFullscreen) document.exitFullscreen(); }
     else if (SHOTS[k]) goShot(k);
   });
@@ -531,5 +535,5 @@
   }
 
   DSP.actions = actions;
-  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, add, setParent, glow, heat, pool, qb, initLabels, setLab, showLabels, setAvoid, SHOTS, setShots, goShot, shotNow: () => shotKey, resize, setFrame, setArea, onLayout, layout: () => layoutMode, stacked: () => stack.on, grab, block, hitPlane, toScreen, view: () => ({ w: viewW, h: viewH }), run, pause };
+  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, add, setParent, glow, heat, key, floor, pool, qb, initLabels, setLab, showLabels, setAvoid, SHOTS, defaultShots: () => SHOTS_DEFAULT, setShots, goShot, shotNow: () => shotKey, resize, setFrame, setArea, onLayout, layout: () => layoutMode, stacked: () => stack.on, grab, block, hitPlane, toScreen, view: () => ({ w: viewW, h: viewH }), run, pause };
 })(window.DSP = window.DSP || {});

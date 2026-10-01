@@ -18,6 +18,8 @@ the guided tour: [?tour=life](https://tacdelgineer.github.io/desk-space-program/
 - Turn the crew dial to run up to 64 requests at once and see where the GPU finally maxes out, or memory runs out.
 - Race the same launch on all five machines, or take the guided tour: one answer, slowed down, from the file on
   the SSD to the last word.
+- Open the showroom (V): all five machines side by side on one stand at their real sizes, the same question running
+  on all five at once with a ticker over each. Click one to open it up. R puts a desk corner round the stand.
 - Use the Mission Control console in front of the machine with a mouse, a touch screen or a MIDI controller.
 
 ## Where the numbers come from
@@ -50,7 +52,8 @@ open dist/01-liftoff/index.html      # or any browser; the built page works from
 
 URL presets set up any state, for example `?machine=mac&model=q27&prompt=doc&shot=3&record=1`
 (the full list is at the top of [`labs/missions/01-liftoff/mission.js`](labs/missions/01-liftoff/mission.js)).
-Keys: Space launches, O opens the machine, 1-4 move the camera, M switches machines, H hides the interface.
+Keys: Space launches, O opens the machine, 1-4 move the camera, M switches machines, V the showroom, R the room,
+H hides the interface.
 
 `node scripts/check.mjs` builds the site, screenshots its key states on one contact sheet and refuses anything
 private in `dist/` (it needs `npm i --no-save playwright` once). The file map is in

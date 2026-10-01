@@ -73,7 +73,10 @@ const STATES = [
   { id: 'writing', title: 'Open, writing the answer', url: MISSION, run: 'writing' },
   { id: 'record', title: 'Record mode, GPU close-up', url: MISSION + '?record=1&shot=3', run: 'writing' },
   { id: 'tour', title: 'Tour autoplay: The life of one answer, step 7', url: MISSION + '?tour=life&autoplay=1', run: 'tour', step: 6 },
-  { id: 'tour-report', title: 'Tour autoplay: Mission Report', url: MISSION + '?tour=ep1&autoplay=1', run: 'tour', step: 3 }
+  { id: 'tour-report', title: 'Tour autoplay: Mission Report', url: MISSION + '?tour=ep1&autoplay=1', run: 'tour', step: 3 },
+  { id: 'showroom', title: 'Showroom: all five, one question, launched', url: MISSION + '?showroom=1', run: 'showroom' },
+  { id: 'showroom-open', title: 'Showroom: the RTX 5090 picked and opened', url: MISSION + '?showroom=1&focus=rtx5090', run: 'showroom' },
+  { id: 'room', title: 'The room on, writing (record mode)', url: MISSION + '?room=1&record=1', run: 'writing' }
 ];
 const SIZES = [[1920, 1080], [1080, 1920]];
 
@@ -105,6 +108,7 @@ async function picture(browser, st, [w, h]) {
       const S = n => __step(n, dt);
       if (run === 'closed') S(60);
       else if (run === 'tour') { S(20); __lab.tour.go(step); S(48); }
+      else if (run === 'showroom') { S(50); __lab.launch(); S(60); }
       else {
         __lab.launch();
         for (let i = 0; __lab.box.pending && i < 600; i++) S(1);    // a closed machine opens before it launches

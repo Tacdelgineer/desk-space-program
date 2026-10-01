@@ -12,6 +12,7 @@
    stay in step; a MIDI controller can drive the console too (kit/midi.js).
    Live mode (section 6) switches on when live/bridge.mjs serves the page: a chat box that runs a real model
    on the Spark, real memory, power and temperature, and the Benchmark button.
+   The showroom (section 8, showroom.js): ?showroom=1 (&focus=<machine>), V; the desk-corner room (kit/room.js): ?room=1, R.
    The guided tour (section 7, kit/tour.js, labs/tours/*.json): ?tour=life|ep1|ep3|ep4, &autoplay=1 to play it through
    for a recording; the console slides away while it runs and comes back for free play.
    ========================================================= */
@@ -75,6 +76,7 @@
 
     // Changing the selection from code re-syncs the pills too
     const sel = new Proxy(start0, { set(o, k, v) { o[k] = v; ui.syncPills(o); return true; } });
+    let show = null;                                   // the showroom (section 8), once it exists
     const curModel = () => sel.model === 'size' ? sizedModel(sel.size, HANDLE) : pick(MODELS, sel.model);
 
     const ANSWER_TEXT = 'Short answer: your GPU is waiting on memory, not on math. To write each token, the model reads all of its weights out of memory, every single time. A bigger model means more gigabytes to move per token, and the memory bus can only move so much per second. The GPU finishes its math in a sliver of that time, then sits idle until the next delivery arrives. That is why bandwidth, not compute, sets your writing speed. It is also why mixture-of-experts models feel fast: they read only a small slice of their weights for each token.';
@@ -93,7 +95,7 @@
       const b = built[id] = DSP.machines[id].build();
       b.id = id; b.group.visible = false;
       b.shell.plate.print(plateSpec(id));
-      E.grab({ meshes: b.shell.grab, cursor: 'grab', enabled: () => cur === b && !swap, hover: on => { b.lidHot = on; }, down: lidDown, move: lidMove, up: lidUp });
+      E.grab({ meshes: b.shell.grab, cursor: 'grab', enabled: () => cur === b && !swap && !(show && show.on()), hover: on => { b.lidHot = on; }, down: lidDown, move: lidMove, up: lidUp });
       return b;
     }
 
@@ -147,6 +149,7 @@
     // was open). The specs switch at once.
     const SINK = 16, DOWN = 0.55, UP = 0.75;
     function switchMachine(id) {
+      if (show && show.on()) { show.focus(id); return; }
       if (id === CUR.id && !swap) return;
       sel.machine = id; CUR = pick(MACHINES, id); ui.setRaceThis(id); // the specs snap now, the board follows
       document.querySelector('.sticker').textContent = WORDS[id].sticker;
@@ -184,6 +187,7 @@
 
     // keep: the size handle or crew dial moved; stay loaded instead of reloading from the SSD
     function applySelection(keep) {
+      if (show && show.on()) { show.select(keep); return; }
       const model = curModel(), prec = pick(PRECS, sel.prec), prompt = pick(PROMPTS, sel.prompt);
       sim.plan = calc(CUR, model, prec, prompt, sel.crew);
       sim.others = MACHINES.map(m => ({ m, p: calc(m, model, prec, prompt, sel.crew) }));
@@ -218,6 +222,7 @@
     let armed = false;
     const disarm = () => { armed = false; deck.arm(false); };
     function launch() {
+      if (show && show.on()) return show.launch();
       if (live.on) { if (liveRunning()) return true; leaveLive(); }
       if (sim.phase === 'reading' || sim.phase === 'writing') return true;
       const p = sim.plan, w = WORDS[CUR.id];
@@ -251,6 +256,7 @@
     // The phases and the numbers, then the machine lights up to match (machines/*.js, kit/board.js)
     let launchedForRecord = false, openedForRecord = false;
     function updateSim(dt, time) {
+      if (show && show.on()) return show.update(dt, time);
       if (swap) stepSwap(dt);
       stepCase(dt);
       slideDeck(dt);
@@ -400,7 +406,7 @@
     E.onLayout(mode => {
       slide.hidden = mode === 'small'; slide.want = mode === 'focus' ? 1 : 0;
       if (slide.hidden || E.reduceMotion) slide.k = slide.want;
-      deck.root.visible = !slide.hidden && slide.k < 1;
+      deck.root.visible = !slide.hidden && slide.k < 1 && !(show && show.on());
     });
     function slideDeck(dt) {
       if (slide.k !== slide.want) slide.k = slide.want > slide.k ? Math.min(1, slide.k + dt / 0.7) : Math.max(0, slide.k - dt / 0.7);
@@ -441,6 +447,7 @@
 
     const statusEl = document.getElementById('status'), bigTag = document.getElementById('bigtag');
     function updateUI() {
+      if (show && show.on()) return show.ui();
       if (live.on) return updateLiveUI();
       const p = sim.plan, w = WORDS[CUR.id], crew = sel.crew;
       let st = '', cls = '';
@@ -455,6 +462,7 @@
       if (statusEl.textContent !== st) statusEl.textContent = st;
       statusEl.className = 'status ' + cls;
       if (sim.phase === 'writing' || sim.phase === 'done') setTerm(ANSWER_TEXT.slice(0, Math.round(sim.tokens / ANSWER * ANSWER_TEXT.length)));
+      if (DSP.room && DSP.room.on()) DSP.room.terminal([{ text: '> ' + pick(PROMPTS, sel.prompt).text, color: 'prompt' }, { text: ANSWER_TEXT.slice(0, Math.round(sim.tokens / ANSWER * ANSWER_TEXT.length)) }]);
       const g = sim.phase === 'writing' ? p.busyWrite : sim.phase === 'reading' ? 1 : 0;
       const b = sim.phase === 'writing' ? p.busWrite : sim.phase === 'reading' ? p.busRead : 0;
       document.getElementById('m-gpu').style.width = (g * 100).toFixed(1) + '%'; document.getElementById('v-gpu').textContent = pct(g);
@@ -487,8 +495,8 @@
     }
 
     DSP.actions.launch = launch;
-    DSP.actions.nextMachine = () => switchMachine(MACHINES[(MACHINES.indexOf(CUR) + 1) % MACHINES.length].id);
-    DSP.actions.toggleCase = () => { if (!swap) openCase(box.to < 1); };
+    DSP.actions.nextMachine = () => show && show.on() ? show.next() : switchMachine(MACHINES[(MACHINES.indexOf(CUR) + 1) % MACHINES.length].id);
+    DSP.actions.toggleCase = () => { if (show && show.on()) show.toggleLid(); else if (!swap) openCase(box.to < 1); };
     document.getElementById('launch').addEventListener('click', launch);
 
     /* =========================================================
@@ -849,16 +857,54 @@
     // every <script type="application/json" id="tour-<id>"> on the page is a tour: ?tour=<id>
     const TOURS = {}; document.querySelectorAll('script[id^="tour-"]').forEach(s => { TOURS[s.id.slice(5)] = s.id; });
     function startTour(id, autoplay) {
+      if (show && show.on()) show.leave();
       return DSP.model.loadData([TOURS[id] || TOURS.life]).then(([data]) => DSP.tour.start(data, tourLab, { autoplay }));
     }
     const tourBtn = document.getElementById('tour-btn');
     if (tourBtn) tourBtn.addEventListener('click', () => startTour('life', false));
 
     /* =========================================================
+       8. SHOWROOM AND ROOM: all five machines on one long stand (showroom.js, V), and the desk corner round the stand
+          (kit/room.js, R). The single machine, its stand and the console step aside while the showroom is on.
+       ========================================================= */
+    const SINGLE_FOOT = { x0: 4.5 - 17.5, x1: 4.5 + 17.5, z0: -1.3 - 11.75, z1: -1.3 + 11.75 };   // the stand made in section 2
+    const singleFrames = () => ({ wide: [MACHINE_BOX, MUG_BOX, deck.box], tall: [MACHINE_BOX], small: [MACHINE_BOX], focus: [MACHINE_BOX], stack: { bottom: [deck.box], object: deck.root } });
+    const SHOWROOM_WORDS = 'All five machines on one stand, at their real sizes, with the same mug. One question runs on all five at once: launch and watch the tickers. Click a machine to open it up.';
+    if (DSP.showroom) show = DSP.showroom.create({
+      E, ui, MACHINES, WORDS, sel, curModel, PRECS, PROMPTS, SPEEDS, calc, pick, ANSWER, ANSWER_TEXT, fmtT, fmtS, fmtGB, TAG, plateSpec,
+      full: id => machineObj(id), autoLaunch: record,
+      single(on) {                                     // the one-machine view steps aside, or comes back
+        stand.group.visible = on; cur.group.visible = on;
+        deck.root.visible = on && !slide.hidden && slide.k < 1;
+        document.querySelector('.sticker').textContent = on ? WORDS[CUR.id].sticker : SHOWROOM_WORDS;
+        const b = document.getElementById('show-btn'); if (b) { b.textContent = on ? 'Showroom' : 'One machine'; b.setAttribute('aria-pressed', on ? 'false' : 'true'); }
+        if (!on) return;
+        sel.machine = CUR.id; ui.setRaceThis(CUR.id);
+        caseLabels = ''; E.setAvoid(deck.root); E.setShots(cur.shots);
+        E.glow.position.set(...cur.glowAt); E.heat.position.set(...cur.heatAt);
+        if (DSP.room) DSP.room.place(SINGLE_FOOT);
+        E.setFrame(singleFrames()); applySelection(true); E.goShot('1');
+      }
+    });
+    function toggleRoom(on) {
+      if (!DSP.room) return;
+      DSP.room.set(on == null ? !DSP.room.on() : on);
+      if (show && show.on()) show.frame(false);
+      else { E.setFrame(singleFrames()); if (E.shotNow() === '1') E.goShot('1'); }
+    }
+    DSP.actions.toggleShowroom = () => { if (!show) return; if (show.on()) show.leave(); else { if (DSP.tour && DSP.tour.active()) DSP.tour.stop(); show.enter(); } };
+    DSP.actions.toggleRoom = () => toggleRoom();
+    DSP.actions.escape = () => { if (show && show.on()) show.escape(); };
+    const showBtn = document.getElementById('show-btn'), roomBtn = document.getElementById('room-btn');
+    if (showBtn) showBtn.addEventListener('click', () => DSP.actions.toggleShowroom());
+    if (roomBtn) roomBtn.addEventListener('click', () => { toggleRoom(); roomBtn.setAttribute('aria-pressed', DSP.room.on() ? 'true' : 'false'); });
+    if (DSP.room) DSP.room.place(SINGLE_FOOT);
+
+    /* =========================================================
        5. GO
        ========================================================= */
     if (record) document.body.classList.add('hide-ui');
-    E.setFrame({ wide: [MACHINE_BOX, MUG_BOX, deck.box], tall: [MACHINE_BOX], small: [MACHINE_BOX], focus: [MACHINE_BOX], stack: { bottom: [deck.box], object: deck.root } });
+    E.setFrame(singleFrames());
     E.camera.position.set(...E.SHOTS['1'].pos); E.controls.target.set(...E.SHOTS['1'].tgt);
     applySelection();
     E.goShot(startShot || '1', true);
@@ -870,8 +916,10 @@
       }, () => {});
     }
     E.run(updateSim, updateUI);
+    if (q.get('room') === '1') toggleRoom(true);
     const tourQ = q.get('tour');
     if (tourQ && DSP.tour) startTour(TOURS[tourQ] ? tourQ : 'life', q.get('autoplay') === '1').catch(e => console.error('tour', e));
-    window.__lab = { launch, sim, sel, applySelection, switchMachine, busy: () => !!swap, goShot: E.goShot, live, startLive, deck, box, openCase, cur: () => cur, startTour, tour: DSP.tour, metric };
+    else if (q.get('showroom') === '1' && show) show.enter({ focus: alias(q.get('focus'), { spark: 'spark', rtx5090: 'rtx5090', '5090': 'rtx5090', mac: 'mac', strix: 'strix', pro6000: 'pro6000' }) });
+    window.__lab = { launch, sim, sel, applySelection, switchMachine, busy: () => !!swap, goShot: E.goShot, live, startLive, deck, box, openCase, cur: () => cur, startTour, tour: DSP.tour, metric, report, show, room: DSP.room, toggleRoom };
   }
 })(window.DSP = window.DSP || {});

@@ -18,12 +18,14 @@ the screenprint theme, commit per part) apply to everything below.
 | `labs/kit/engine.js` | renderer, post chain, camera shots, framing (`setFrame`), pointer, keys, frame loop | change the look or camera for every machine |
 | `labs/kit/parts.js` | materials and one builder per part (board, chip tiles, memory, caps, SSD, ports, cooler, fan) | add a part |
 | `labs/kit/shell.js` | the closed shell, spec plate, mug at real scale, `rig` (lid opens, cooler rises) | change how machines open |
+| `labs/kit/recipe.js` | draws a machine from a recipe: case, board, chip, memory layout, bus, power, parts, cooler, shell; `shellOnly` | add a kind of part, case, cooler or shell |
+| `labs/kit/room.js` | the desk-corner room round the stand (R): desk, walls, poster, window, monitor, lamp | change the room |
 | `labs/kit/board.js` | how every machine lights up: bus lanes, memory cells, GPU blocks, particles | change the lighting rules |
 | `labs/kit/deck.js`, `midi.js` | the 3D Mission Control console, Web MIDI learn | change the console |
 | `labs/kit/tour.js` | guided tour player (card, trip map, caption, scrubber, What if, `outline()`) | change how tours look and play |
 | `labs/kit/ui.js`, `themes/screenprint.css` | HTML panels; the whole look in one CSS file | change interface or theme |
-| `labs/machines/*.js` | one file per machine: where its parts sit, its shell, close-up shots | add or change a machine |
-| `labs/missions/01-liftoff/` | `index.html` (markup, words, script list), `mission.js` (choices, simulation, presets, tour lab, metrics) | change what the mission does |
+| `labs/machines/*.js` | one recipe per machine (numbers only, plus its silkscreen art) | add or change a machine |
+| `labs/missions/01-liftoff/` | `index.html` (markup, words, script list), `mission.js` (choices, simulation, presets, tour lab, metrics), `showroom.js` (V: five machines on one stand) | change what the mission does |
 | `labs/data/` | `machines.json`, `models.json`, `measured/`, `reported/`, `missions.json` | add a spec or a run |
 | `labs/tours/*.json` | one tour per file; numbers only as `{metric}` placeholders | write a tour |
 | `labs/tools/` | `shoot.mjs` (deterministic screenshots, pixel compare), `report.mjs` (Mission Report numbers), `tour-text.mjs` (a tour with its numbers filled in) | |
@@ -33,12 +35,13 @@ the screenprint theme, commit per part) apply to everything below.
 
 Data contract: every number is `{ "value": n, "source": "measured" | "reported" | "estimated" | "config" | "chosen" }`
 with `link` (required for reported) and `note`. URL presets: `machine`, `model`, `bits`, `prompt`, `crew`, `shot`,
-`speed`, `record=1`, `open=0|1`, `tour=<id>`, `autoplay=1` (list at the top of `mission.js`).
+`speed`, `record=1`, `open=0|1`, `tour=<id>`, `autoplay=1`, `showroom=1`, `focus=<id>`, `room=1` (list at the top of
+`mission.js`).
 
 ## Workflows
 
 **Add a machine** (`/add-machine <name>`): specs with links into `data/machines.json`, published runs into
-`data/reported/<id>.json`, the machine file, then register it on the page. Steps, the scale rules and the return
+`data/reported/<id>.json`, a recipe in `labs/machines/<id>.js`, then register it on the page. Steps, the scale rules and the return
 contract: `references/add-machine.md`.
 
 **Write a tour** (`/new-tour <story>`): a JSON file in `labs/tours/`, one `<script id="tour-<id>">` tag in the

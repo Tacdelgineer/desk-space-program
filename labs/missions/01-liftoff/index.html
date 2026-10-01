@@ -22,6 +22,8 @@
   <div class="meta">
     <span class="stamp">Mission 01: Liftoff</span>
     <button class="linkish" id="tour-btn" type="button">Guided tour</button>
+    <button class="linkish" id="show-btn" type="button" aria-pressed="false">Showroom</button>
+    <button class="linkish" id="room-btn" type="button" aria-pressed="false">Room</button>
     <button class="linkish" id="open-info" type="button">What's real?</button>
     <button class="linkish" id="open-keys" type="button">Keys</button>
     <button class="linkish only-desk" id="bar-btn" type="button" aria-pressed="false">Controls bar</button>
@@ -84,7 +86,7 @@
   <ul>
     <li>The specs are published figures. DGX Spark: 128 GB of shared memory on a 256-bit bus, 273 GB/s, a 20-core Arm CPU next to a Blackwell GPU. RTX 5090: 32 GB of GDDR7 in 16 chips on a 512-bit bus, 1,792 GB/s. Mac Studio M3 Ultra: 256 GB on the chip package, a 1,024-bit bus, 819 GB/s. AMD Strix Halo (AMD's own mini PC with the Ryzen AI Max+ 395): 128 GB of LPDDR5X-8000 on a 256-bit bus, 256 GB/s, 16 Zen 5 cores on two chiplets and a Radeon 8060S GPU with 40 compute units on the third die, 120 W. RTX Pro 6000 Blackwell Workstation Edition: the 5090's GB202 chip with 188 of its 192 SMs switched on (the 5090 has 170), 96 GB of GDDR7 in 32 chips, 16 on each side of the board, on the same 512-bit bus, 1,792 GB/s, 600 W.</li>
     <li>On Linux the Strix Halo's GPU may use only about half of the memory until a kernel setting raises the limit; the lab assumes the usual setting for local AI, 120 GB. Its compute figure is our estimate from AMD's numbers (40 compute units at 2.9 GHz): about 59 TFLOPS of 16-bit math, drawn as a GPU about half the size of the Spark's.</li>
-    <li>The outer shells are stylized, not the real designs: no logos, no exact shapes. The coffee mug beside each machine is the same mug, 82 mm across and 95 mm tall, drawn at that machine's real scale, so it looms over the 150 mm boxes and shrinks next to the 30 cm graphics cards.</li>
+    <li>The outer shells are stylized, not the real designs: no logos, no exact shapes. The coffee mug beside each machine is the same mug, 82 mm across and 95 mm tall, drawn at that machine's real scale, so it looms over the 150 mm boxes and shrinks next to the 30 cm graphics cards. The showroom (V) stands all five side by side at their real sizes with one mug. The room (R) is decoration: an imagined desk corner.</li>
     <li>The boards are illustrations, not teardowns. Placement, part counts and the coolers are simplified. Each glowing cell on a memory chip is 1 GB, and each glowing lane of the bus is 32 bits wide, so you can count them: 8, 16, 32, 8 and 16. The RTX Pro 6000's lanes each feed two chips, one on top of the board and one underneath, so its 16 memory spots hold 6 cells.</li>
     <li>A graphics card sits in a PC, and llama.cpp keeps a model's lookup table in the PC's own memory, so on the 5090 and the Pro 6000 only the rest has to fit on the card. That is how Flash-Next's 111 GB file runs on a 96 GB card. The Pro 6000's 16-bit math is NVIDIA's figure with 32-bit adding, 504 TFLOPS; GeForce cards like the 5090 do that at half rate.</li>
     <li>The crew dial runs several requests at once. Each step reads the weights once for everyone plus each request's prompt memory, and does the math once per request, so the total speed climbs until the GPU's math catches up with memory or the prompt memory no longer fits.</li>
@@ -118,6 +120,8 @@
     <dt><kbd>H</kbd></dt><dd>Hide the interface for recording</dd>
     <dt><kbd>F</kbd></dt><dd>Fullscreen</dd>
     <dt><kbd>B</kbd></dt><dd>Show the controls bar (<kbd>Tab</kbd> into it works too)</dd>
+    <dt><kbd>V</kbd></dt><dd>The showroom: all five machines side by side at their real sizes, one question on all five (click one to open it, <kbd>Esc</kbd> to step back)</dd>
+    <dt><kbd>R</kbd></dt><dd>The room: a desk corner round the stand</dd>
     <dt><kbd>Esc</kbd></dt><dd>Leave MIDI learn, or the guided tour</dd>
     <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>In the guided tour: previous and next step (<kbd>Space</kbd> plays and pauses)</dd>
     <dt>Drag, scroll</dt><dd>Orbit and zoom</dd>
@@ -156,11 +160,14 @@
 <script src="../../kit/deck.js"></script>
 <script src="../../kit/midi.js"></script>
 <script src="../../kit/tour.js"></script>
+<script src="../../kit/recipe.js"></script>
+<script src="../../kit/room.js"></script>
 <script src="../../machines/spark.js"></script>
 <script src="../../machines/rtx5090.js"></script>
 <script src="../../machines/m3ultra.js"></script>
 <script src="../../machines/strixhalo.js"></script>
 <script src="../../machines/rtxpro6000.js"></script>
+<script src="showroom.js"></script>
 <script src="mission.js"></script>
 </body>
 </html>

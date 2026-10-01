@@ -212,5 +212,9 @@ Not now: drag-to-load crates, pulling the cooler off by hand, sound, share links
 - **Session H (2026-09-30): making future work cheap.** `CLAUDE.md` holds the standing rules, the `desk-lab` skill
   (`.claude/skills/desk-lab/`) the file map and workflows, `.claude/commands/` the slash commands (/add-machine,
   /new-episode, /new-tour, /make-short, /check). `scripts/check.mjs` is /check and the pre-push hook.
+- **Session H, part 2:** machines are recipes (`kit/recipe.js` draws `labs/machines/*.js`; checked pixel for pixel
+  against the hand-built files before those went). The showroom (`showroom.js`, V): all five on one stand at their
+  true sizes (0.06 units per mm), one question on all five, a ticker over each, click to open one; only the picked
+  machine has its insides built. The room (`kit/room.js`, R): a dim desk corner round whichever stand is showing.
 - **`EPISODES.md`** is the list of Shorts. Each one has a preset link that opens the lab in the
   exact state to film. Keep it in step with the missions.

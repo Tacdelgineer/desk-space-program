@@ -1,178 +1,74 @@
 /* =========================================================
-   MACHINE: RTX 5090, a graphics card lying flat with its cooler lifted off.
-   GPU die in the centre, 16 GDDR7 chips around it (2 GB each, 2 cells), one 32-bit lane per chip:
-   a 512-bit bus of 16 short, fat lanes. Models arrive through the PCIe edge connector.
-   The parts light up by the shared rules in kit/board.js. build() returns the machine.
+   MACHINE: RTX 5090, a recipe for kit/recipe.js. A 304 mm graphics card lying flat with its cooler lifted off.
+   The GB202 die with 170 blocks in the centre, 16 GDDR7 chips of 2 GB around it, one 32-bit lane each: a 512-bit
+   bus of 16 short, fat lanes. Models arrive through the PCIe edge connector.
    ========================================================= */
 (function (DSP) {
   'use strict';
-  if (!DSP.parts) return;
-  const E = DSP.engine, P = DSP.parts, T = E.T, mesh = E.mesh, std = E.std, M = P.M, rbox = P.rbox, scatter = P.scatter;
-
-  function build() {
-    const Y0 = 0.7;                       // top of the board
-    const BZ = 2.6;                       // the card's centre line; the cooler sits behind it
-    const GX = -0.3, GZ = BZ;             // GPU centre
-    const group = new T.Group(); E.scene.add(group); E.setParent(group);
-
-    // 16 memory chips around the GPU, in order around the ring: top row right to left, left side, bottom row,
-    // then the right side last, so a model that overflows spills where the memory close-up (shot 2) looks
-    const CHIPS = [];
-    [2.4, 1.2, 0, -1.2, -2.4].forEach(dx => CHIPS.push({ x: GX + dx, z: GZ - 3.0, side: 't' }));
-    [-1.15, 0, 1.15].forEach(dz => CHIPS.push({ x: GX - 3.2, z: GZ + dz, rot: true, side: 'l' }));
-    [-2.4, -1.2, 0, 1.2, 2.4].forEach(dx => CHIPS.push({ x: GX + dx, z: GZ + 3.0, side: 'b' }));
-    [1.15, 0, -1.15].forEach(dz => CHIPS.push({ x: GX + 3.2, z: GZ + dz, rot: true, side: 'r' }));
-    const DIE_W = 3.2, DIE_D = 3.4;
-    // where each chip's lane meets the die
-    const laneOf = ch => {
-      const clampX = v => Math.max(GX - DIE_W / 2 + 0.3, Math.min(GX + DIE_W / 2 - 0.3, v));
-      if (ch.side === 't') return { s: [ch.x, ch.z + 0.45], e: [clampX(GX + (ch.x - GX) * 0.55), GZ - DIE_D / 2] };
-      if (ch.side === 'b') return { s: [ch.x, ch.z - 0.45], e: [clampX(GX + (ch.x - GX) * 0.55), GZ + DIE_D / 2] };
-      if (ch.side === 'r') return { s: [ch.x - 0.45, ch.z], e: [GX + DIE_W / 2, ch.z] };
-      return { s: [ch.x + 0.45, ch.z], e: [GX - DIE_W / 2, ch.z] };
-    };
-
-    // backplate, then the board with a tab for the PCIe fingers
-    mesh(rbox(16.2, 0.46, 8.2, 0.12), M.dark, 0, 0.23, BZ);
-    const tex = P.pcb(15.6, 7.6, h => {
-      const bz = z => z - BZ;
-      CHIPS.forEach(ch => {
-        const L = laneOf(ch), horiz = ch.side === 'l' || ch.side === 'r';
-        for (let i = 0; i < 9; i++) {
-          const o = (i - 4) * 0.075;
-          h.trace(horiz ? [[L.s[0], bz(L.s[1]) + o], [L.e[0], bz(L.e[1]) + o]] : [[L.s[0] + o, bz(L.s[1])], [L.e[0] + o, bz(L.e[1])]], 3);
-        }
-      });
-      h.silk.box(GX, bz(GZ), 4.4, 4.4);
-      CHIPS.forEach(ch => h.silk.box(ch.x, bz(ch.z), ch.rot ? 1.05 : 1.15, ch.rot ? 1.15 : 1.05));
-      h.silk.text('U1  GB202', GX + 1.1, bz(GZ) - 2.35);
-      CHIPS.forEach((ch, i) => { if (ch.side === 't') h.silk.text('M' + (5 - i), ch.x - 0.45, bz(ch.z) - 0.6, 24); });
-      h.silk.text('PCIE 5.0 X16', -6.4, 3.45);
-      h.silk.text('TACDEL LAB  /  ILLUSTRATIVE LAYOUT', 1.2, 3.55, 34);
-      h.silk.text('DESK SPACE PROGRAM  MISSION 01', -7.4, -3.3, 34);
-    }, { base: '#080a0f', traces: 150, vias: 300 });
-    P.board(15.6, 7.6, Y0, tex, 0, BZ, 0x080a0f);
-    mesh(new T.BoxGeometry(5.2, 0.16, 0.6), std(0x080a0f, 0.6, 0.1), -4.1, Y0 - 0.08, BZ + 4.1);
-    const fingers = []; for (let i = 0; i < 40; i++) if (i !== 9) fingers.push([-6.5 + i * 0.123, Y0 + 0.004, BZ + 4.12]);
-    scatter(new T.BoxGeometry(0.08, 0.012, 0.44), M.gold, fingers);
-
-    // I/O bracket standing at the end, display outputs behind it
-    mesh(rbox(0.12, 2.6, 7.8, 0.04), M.alu, -8.0, 1.3, BZ);
-    [-2.4, -0.8, 0.8, 2.4].forEach(dz => mesh(new T.BoxGeometry(1.1, 0.55, 0.95), M.alu, -7.35, Y0 + 0.28, BZ + dz));
-
-    // GPU: substrate, one big die with 170 blocks (10 x 17)
-    mesh(rbox(4.2, 0.2, 4.2, 0.06), M.substrate, GX, Y0 + 0.1, GZ);
-    const DIE_Y = Y0 + 0.2;
-    mesh(rbox(DIE_W, 0.12, DIE_D, 0.03), M.die, GX, DIE_Y + 0.06, GZ);
-    const tileTop = DIE_Y + 0.126;
-    const gpu = P.tiles(GX, GZ, 10, 17, 0.25, 0.15, 0.3, 0.195, tileTop);
-
-    // memory: 16 GDDR7 chips, 2 cells each
-    const mem = P.memory(CHIPS, Y0, { w: 1.0, d: 0.9, h: 0.12, cols: 2, rows: 1, cw: 0.4, cd: 0.66, px: 0.46, pz: 0 });
-
-    // bus: one lane per chip, 32 bits each, 512 bits in all
-    const bus = DSP.board.bus(CHIPS.map(ch => { const L = laneOf(ch); return { s: new T.Vector3(L.s[0], Y0 + 0.02, L.s[1]), e: new T.Vector3(L.e[0], Y0 + 0.02, L.e[1]) }; }), Y0, { width: 0.7, per: 22 });
-
-    // power delivery: about 28 phases either side of the GPU, the 12V-2x6 connector on the top edge
-    const ind = [], caps = [];
-    for (let a = 0; a < 3; a++) for (let b = 0; b < 6; b++) ind.push([4.7 + a * 0.95, Y0 + 0.3, BZ - 2.4 + b * 0.95]);
-    for (let a = 0; a < 2; a++) for (let b = 0; b < 5; b++) ind.push([-6.6 + a * 0.95, Y0 + 0.3, BZ - 1.9 + b * 0.95]);
-    for (let b = 0; b < 6; b++) caps.push([7.45, Y0 + 0.31, BZ - 2.4 + b * 0.95]);
-    for (let b = 0; b < 4; b++) caps.push([-4.85, Y0 + 0.31, BZ - 1.4 + b * 0.95]);
-    P.inductors(ind, Y0);
-    P.polymerCaps(caps, Y0);
-    mesh(rbox(1.5, 0.62, 0.8, 0.05), M.black, 3.9, Y0 + 0.31, BZ - 3.35);
-    const pins = []; for (let a = 0; a < 6; a++) for (let b = 0; b < 2; b++) pins.push([3.45 + a * 0.18, Y0 + 0.63, BZ - 3.5 + b * 0.3]);
-    scatter(new T.BoxGeometry(0.1, 0.02, 0.18), M.epoxy, pins);
-    const mlcc = [], res = [];
-    for (let side = 0; side < 4; side++) for (let i = 0; i < 12; i++) {
-      const t = -1.65 + i * 0.3, d = 2.25;
-      const p = [[t, d], [t, -d], [d, t], [-d, t]][side];
-      mlcc.push([GX + p[0], Y0 + 0.05, GZ + p[1], side > 1 ? Math.PI / 2 : 0]);
-    }
-    for (let i = 0; i < 26; i++) res.push([4.6 + (i % 13) * 0.22, Y0 + 0.03, BZ + 3.3 + Math.floor(i / 13) * 0.3]);
-    for (let i = 0; i < 20; i++) mlcc.push([-6.8 + (i % 10) * 0.26, Y0 + 0.05, BZ + 2.95 + Math.floor(i / 10) * 0.3]);
-    P.ceramicCaps(mlcc);
-    P.resistors(res);
-
-    // cooler, lifted off: vapour chamber over the die, four heat pipes back to a fin stack, two fans on top.
-    // While the card is closed the fin stack sits on the card under the cover, so the plate and the fin block move
-    // separately and the heat pipes are laid again between them as they go.
-    const COOL_Y = 5.6, FIN_Z = -4.9, PIPE_DX = [-1.2, -0.4, 0.4, 1.2];
-    const plateG = new T.Group(); group.add(plateG); E.setParent(plateG);
-    mesh(rbox(4.6, 0.32, 4.6, 0.08), M.copper, GX, COOL_Y, GZ);
-    const finG = new T.Group(); group.add(finG); E.setParent(finG);
-    const fins = []; for (let i = 0; i < 56; i++) fins.push([-7.15 + i * 0.26, 6.9, FIN_Z]);
-    scatter(new T.BoxGeometry(0.05, 1.8, 5.2), M.alu, fins, true);
-    const fanA = P.fan(new T.Vector3(-4.3, 8.1, FIN_Z), 1.3), fanB = P.fan(new T.Vector3(4.3, 8.1, FIN_Z), 1.3);
-    E.setParent(group);
-    const pipes = PIPE_DX.map(() => { const m = mesh(new T.BufferGeometry(), M.copper, 0, 0, 0); return m; });
-    function layPipes() {
-      const a = plateG.position, b = finG.position;
-      PIPE_DX.forEach((dx, k) => {
-        const pts = [[GX + dx, COOL_Y + 0.22 + a.y, GZ + 1.6 + a.z], [GX + dx, COOL_Y + 0.22 + a.y, GZ - 1.6 + a.z], [GX + dx * 2.6, 6.2 + 0.25 * k + b.y, -2.0 + b.z], [GX + dx * 3.4, 6.2 + 0.25 * k + b.y, -7.4 + b.z]];
-        pipes[k].geometry.dispose();
-        pipes[k].geometry = new T.TubeGeometry(new T.CatmullRomCurve3(pts.map(q => new T.Vector3(...q))), 60, 0.17, 12);
-      });
-    }
-    const dashM = new T.LineDashedMaterial({ color: 0x9ea4d2, dashSize: 0.25, gapSize: 0.18, transparent: true, opacity: 0.55 });
-    [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]].forEach(([x, z]) => {
-      const l = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(GX + x, COOL_Y - 0.2, GZ + z), new T.Vector3(GX + x * 0.72, DIE_Y + 0.02, GZ + z * 0.76)]), dashM);
-      l.computeLineDistances(); E.add(l);
-    });
-
-    // the shell: a charcoal fan cover with two open fan rings (the real fans turn inside), a yellow edge stripe and the
-    // spec plate between the fans. Stylized, not the real card: no logos, no brand shapes. The bracket stays outside.
-    const S = DSP.shell, lid = new T.Group(); group.add(lid); E.setParent(lid);
-    const shroudM = std(0x2a2b31, 0.42, 0.55, { envMapIntensity: 0.8 }); shroudM.userData.envTuned = true;
-    const SX0 = -7.9, SX1 = 8.2, SZ0 = -1.55, SZ1 = 6.35, SCX = (SX0 + SX1) / 2, SCZ = (SZ0 + SZ1) / 2, TOP = 3.95;
-    const shroud = mesh(S.block(S.rounded(0.7), SX1 - SX0, SZ1 - SZ0, 0.47, TOP, 0.16, [[-4.3 - SCX, FIN_Z + 7.5 - SCZ, 2.35], [4.3 - SCX, FIN_Z + 7.5 - SCZ, 2.35]]), shroudM, SCX, 0, SCZ);
-    [-4.3, 4.3].forEach(x => { const r = mesh(new T.TorusGeometry(2.36, 0.07, 10, 64), M.alu, x, TOP, FIN_Z + 7.5); r.rotation.x = Math.PI / 2; });
-    const stripeM = std(0xf2c230, 0.5, 0.1); stripeM.userData.envTuned = true;
-    mesh(new T.BoxGeometry(SX1 - SX0 - 1.4, 0.03, 0.32), stripeM, SCX, TOP + 0.005, SZ1 - 0.55, { noCast: true });
-    const plate = S.plate({ w: 3.3, h: 4.3, face: 'top', at: [0, TOP + 0.01, FIN_Z + 7.5] });
-    E.setParent(group);
-    // the mug, at the card's scale (304 mm long)
-    S.mug(16.2 / 304, 11.3, BZ - 2, -Math.PI / 4);
-    const rig = S.rig({
-      lid, guides: dashM, glow: [shroudM, stripeM], pipes: layPipes,
-      parts: [{ g: plateG, seat: [0, -4.42, 0], y: [0.3, 0.85] }, { g: finG, seat: [0, -4.55, 7.5], y: [0.3, 0.72], z: [0.5, 1] }]
-    });
-
-    P.tuneEnv();
-
-    const loadP = E.pool(160, 0x27f2d2, 0.28);
-    const outP = E.pool(80, 0xffc93c, 0.34);
-    const spillP = E.pool(160, 0xff3d9a, 0.22);
-    const PCIE = new T.Vector3(-4.1, Y0 + 0.2, BZ + 4.2);
-
-    const labels = [
-      { id: 'mem', at: new T.Vector3(GX + 2.4, mem.CELL_Y, GZ - 3.0), title: 'GDDR7 memory: the fuel tank' },
-      { id: 'bus', at: new T.Vector3(GX + 2.4, Y0 + 0.05, GZ + 1.15), title: 'Memory bus: the fuel line' },
-      { id: 'gpu', at: new T.Vector3(GX + 0.4, tileTop, GZ + 0.6), title: 'Blackwell GPU: the engine' },
-      { id: 'pcie', at: new T.Vector3(-4.6, Y0 + 0.02, BZ + 4.2), title: 'PCIe slot: the loading dock' },
-      { id: 'power', at: new T.Vector3(3.9, Y0 + 0.62, BZ - 3.35), title: '12V-2x6 power' },
-      { id: 'fan', at: new T.Vector3(4.3, 8.35, -4.9), title: 'Cooler, lifted off' }
-    ];
-    const animate = DSP.board.lightUp({ mem, gpu, cpu: null, bus, fans: [fanA, fanB], gpuBox: [GX, GZ, DIE_W + 0.25, DIE_D + 0.25, DIE_Y + 0.14], loadFrom: PCIE, loadP, outP, spillP });
-    E.setParent(null);
-
-    return {
-      group, animate, labels, outP, spillP,
-      shell: { rig, grab: [shroud], plate, hint: new T.Vector3(0.1, TOP, 5.4), what: 'cover' },
-      chips: '16 chips', busBits: 512,
-      notes: { pcie: 'models load from the PC\'s SSD', power: 'up to 575 W', fan: 'spins up under load' }, loadingLabel: 'pcie',
-      // answers go back out through the slot to the PC
-      out: { from: new T.Vector3(GX, tileTop + 0.05, GZ), spread: [2, 2], mid: new T.Vector3(-2.6, 3.4, BZ + 2.4), to: PCIE },
-      glowAt: [GX, 3, GZ], heatAt: [GX, 2.0, GZ],
-      shots: {
-        '2': { pos: [GX + 2.2 + 7.0, 7.4, GZ - 1.2 + 7.2], tgt: [GX + 2.2, Y0 + 0.2, GZ - 1.2] },
-        '3': { pos: [GX + 5.4, 4.6, GZ + 8.2], tgt: [GX, Y0 + 0.4, GZ] },
-        '4': { pos: [-4.1 - 5.3, 7.1, BZ + 4.0 + 8.6], tgt: [-4.1, Y0 + 0.2, BZ + 4.0] }
+  if (!DSP.recipe) return;
+  const BZ = 2.6, GX = -0.3, GZ = BZ, FIN_Z = -4.9;        // the card's centre line, the GPU, the fin block behind it
+  DSP.recipe.machine({
+    id: 'rtx5090', name: 'RTX 5090', mm: 304, width: 16.2, y0: 0.7,
+    case: { type: 'card', material: 'dark', plate: [16.2, 0.46, 8.2, 0.12], at: [0, BZ] },
+    board: {
+      w: 15.6, d: 7.6, at: [0, BZ], color: '#080a0f', random: [150, 300], traces: { spread: 0.075 },
+      edge: { tab: [-4.1, BZ + 4.1, 5.2, 0.6], fingers: { x: -6.5, z: BZ + 4.12, n: 40, skip: 9, pitch: 0.123, size: [0.08, 0.44] } },
+      art(h, m) {
+        h.box(GX, GZ, 4.4, 4.4);
+        m.chips.forEach(ch => h.box(ch.x, ch.z, ch.rot ? 1.05 : 1.15, ch.rot ? 1.15 : 1.05));
+        h.text('U1  GB202', GX + 1.1, GZ - 2.35);
+        m.chips.forEach((ch, i) => { if (ch.side === 't') h.text('M' + (5 - i), ch.x - 0.45, ch.z - 0.6, 24); });
+        h.text('PCIE 5.0 X16', -6.4, BZ + 3.45);
+        h.text('TACDEL LAB  /  ILLUSTRATIVE LAYOUT', 1.2, BZ + 3.55, 34);
+        h.text('DESK SPACE PROGRAM  MISSION 01', -7.4, BZ - 3.3, 34);
       }
-    };
-  }
-
-  DSP.machines = DSP.machines || {};
-  DSP.machines.rtx5090 = { build, name: 'RTX 5090' };
+    },
+    chip: {
+      at: [GX, GZ], substrate: [4.2, 4.2, 0.2], dies: [[GX, GZ, 3.2, 3.4]],
+      blocks: [{ kind: 'gpu', at: [GX, GZ], grid: [10, 17], tile: [0.25, 0.15], pitch: [0.3, 0.195] }],
+      marker: [GX, GZ, 3.45, 3.65]
+    },
+    // in order round the ring, the right side last, so a model that overflows spills where shot 2 looks
+    memory: { layout: 'ring', chips: 16, sides: [5, 3], pitch: 1.2, dist: 3.0, sidePitch: 1.15, sideDist: 3.2, inset: 0.45, fan: 0.55,
+      chip: { w: 1.0, d: 0.9, h: 0.12, cols: 2, rows: 1, cw: 0.4, cd: 0.66, px: 0.46, pz: 0 } },
+    bus: { bits: 512, width: 0.7, per: 22 },
+    power: {
+      inductors: [[4.7, BZ - 2.4, 3, 6, 0.95, 0.95], [-6.6, BZ - 1.9, 2, 5, 0.95, 0.95]],
+      caps: [[7.45, BZ - 2.4, 1, 6, 0, 0.95], [-4.85, BZ - 1.4, 1, 4, 0, 0.95]],
+      connector: [3.9, BZ - 3.35],
+      mlcc: [{ ring: [GX, GZ], n: 12, pitch: 0.3, d: 2.25 }, { grid: [-6.8, BZ + 2.95, 10, 2, 0.26, 0.3] }],
+      resistors: [[4.6, BZ + 3.3, 13, 2, 0.22, 0.3]]
+    },
+    parts: [
+      { part: 'bracket', at: [-8.0, BZ], outside: true },
+      { part: 'boxes', size: [1.1, 0.55, 0.95], y: 0.28, list: [-2.4, -0.8, 0.8, 2.4].map(dz => [-7.35, BZ + dz]), outside: true }
+    ],
+    cooler: { type: 'split', y: 5.6, finZ: FIN_Z, fans: [-4.3, 4.3], fanK: 1.3, seat: [-4.42, -4.55, 7.5],
+      guides: { half: [2.2, 2.2], from: [GX, GZ], to: [GX, GZ], scale: [0.72, 0.76] } },
+    shell: {
+      type: 'cover', x: [-7.9, 8.2], z: [-1.55, 6.35], y: [0.47, 3.95], round: 0.7, bevel: 0.16, color: 0x2a2b31, rough: 0.42, metal: 0.55,
+      fans: [[-4.3, FIN_Z + 7.5, 2.35, 2.36, 0.07, 64], [4.3, FIN_Z + 7.5, 2.35, 2.36, 0.07, 64]], stripe: true, hint: [0.1, 3.95, 5.4]
+    },
+    plate: { w: 3.3, h: 4.3, face: 'top', at: [0, 3.95 + 0.01, FIN_Z + 7.5] },
+    mug: [11.3, BZ - 2],
+    load: [-4.1, 'board+.2', BZ + 4.2],
+    labels: [
+      ['mem', [GX + 2.4, 'cell', GZ - 3.0], 'GDDR7 memory: the fuel tank'],
+      ['bus', [GX + 2.4, 'board+.05', GZ + 1.15], 'Memory bus: the fuel line'],
+      ['gpu', [GX + 0.4, 'tile', GZ + 0.6], 'Blackwell GPU: the engine'],
+      ['pcie', [-4.6, 'board+.02', BZ + 4.2], 'PCIe slot: the loading dock'],
+      ['power', [3.9, 'board+.62', BZ - 3.35], '12V-2x6 power'],
+      ['fan', [4.3, 'fan+.25', FIN_Z], 'Cooler, lifted off']
+    ],
+    chipsText: '16 chips', loadingLabel: 'pcie',
+    notes: { pcie: 'models load from the PC\'s SSD', power: 'up to 575 W', fan: 'spins up under load' },
+    // answers go back out through the slot to the PC
+    out: { from: [GX, 'tile+.05', GZ], spread: [2, 2], mid: [-2.6, 3.4, BZ + 2.4], to: [-4.1, 'board+.2', BZ + 4.2] },
+    glowAt: [GX, 3, GZ], heatAt: [GX, 2.0, GZ],
+    shots: {
+      '2': { pos: [GX + 2.2 + 7.0, 7.4, GZ - 1.2 + 7.2], tgt: [GX + 2.2, 0.7 + 0.2, GZ - 1.2] },
+      '3': { pos: [GX + 5.4, 4.6, GZ + 8.2], tgt: [GX, 0.7 + 0.4, GZ] },
+      '4': { pos: [-4.1 - 5.3, 7.1, BZ + 4.0 + 8.6], tgt: [-4.1, 0.7 + 0.2, BZ + 4.0] }
+    }
+  });
 })(window.DSP = window.DSP || {});

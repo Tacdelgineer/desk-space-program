@@ -1,156 +1,69 @@
 /* =========================================================
-   MACHINE: Mac Studio, M3 Ultra, 256 GB. An aluminium case with rounded corners, two walls cut away.
-   The chip package carries everything: two dies joined into one chip (GPU and CPU cores on both, no
-   separate GPU) and 8 memory packages sitting on the package itself, 32 cells each. Each package talks
-   to its die over four 32-bit lanes: a 1,024-bit bus of 32 very short, very wide lanes.
-   The parts light up by the shared rules in kit/board.js. build() returns the machine.
+   MACHINE: Mac Studio, M3 Ultra, 256 GB, a recipe for kit/recipe.js. A 197 mm aluminium case with rounded corners.
+   The chip package carries everything: two dies joined into one chip (GPU and CPU cores on both) and 8 memory
+   packages of 32 GB on the package itself, four 32-bit lanes each: a 1,024-bit bus of 32 very short lanes.
    ========================================================= */
 (function (DSP) {
   'use strict';
-  if (!DSP.parts) return;
-  const E = DSP.engine, P = DSP.parts, T = E.T, mesh = E.mesh, std = E.std, M = P.M, rbox = P.rbox, scatter = P.scatter;
-
-  function build() {
-    const Y0 = 1.1;                                   // top of the board
-    const PZ = -0.6;                                  // chip package centre (x = 0)
-    const SUB_Y = Y0 + 0.22;                          // top of the package substrate
-    const DIE_W = 4.2, DIE_D = 3.3, DIE_X = 2.2;      // two dies at x = -2.2 and 2.2, 0.2 apart
-    const group = new T.Group(); E.scene.add(group); E.setParent(group);
-
-    // case: rounded aluminium tray, back and left walls kept, a rounded corner between them
-    const alu2 = M.alu.clone(); alu2.side = T.DoubleSide;
-    const trayG = new T.ExtrudeGeometry(P.rrShape(16.6, 16.6, 2.2), { depth: 0.5, bevelEnabled: false, curveSegments: 12 });
-    trayG.rotateX(-Math.PI / 2); mesh(trayG, M.alu, 0, 0, 0);
-    const perf = E.canvasTex(256, 256, (x, w, h) => {
-      x.fillStyle = '#b0b0b0'; x.fillRect(0, 0, w, h); x.fillStyle = '#202020';
-      for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) { x.beginPath(); x.arc(16 + i * 32, 16 + j * 32, 9, 0, 7); x.fill(); }
-    }, false);
-    perf.wrapS = perf.wrapT = T.RepeatWrapping; perf.repeat.set(6, 2.4);
-    const perfM = std(0x9aa0ac, 0.4, 1, { bumpMap: perf, bumpScale: 0.03, roughnessMap: perf, envMapIntensity: 0.5 });
-    mesh(rbox(12.2, 4.8, 0.4, 0.12), perfM, 0.1, 2.9, -8.1);
-    mesh(rbox(0.4, 4.8, 12.2, 0.12), M.alu, -8.1, 2.9, 0.1);
-    mesh(new T.CylinderGeometry(2.2, 2.2, 4.8, 20, 1, true, Math.PI, Math.PI / 2), alu2, -6.0, 2.9, -6.0);
-    mesh(new T.BoxGeometry(12.2, 0.06, 0.4), M.dark, 0.1, 5.31, -8.1);
-    mesh(new T.BoxGeometry(0.4, 0.06, 12.2), M.dark, -8.1, 5.31, 0.1);
-
-    // memory packages: 4 above the dies, 4 below, 8 x 4 cells each
-    const CHIPS = [];
-    [-3.45, -1.15, 1.15, 3.45].forEach(x => CHIPS.push({ x, z: PZ - 2.95 }));
-    [-3.45, -1.15, 1.15, 3.45].forEach(x => CHIPS.push({ x, z: PZ + 2.95 }));
-
-    // board
-    const tex = P.pcb(14.4, 14.4, h => {
-      CHIPS.forEach(ch => { for (let k = 0; k < 4; k++) { const x = ch.x - 0.87 + k * 0.58; for (let i = 0; i < 3; i++) h.trace([[x - 0.1 + i * 0.1, ch.z], [x - 0.1 + i * 0.1, PZ + Math.sign(ch.z - PZ) * 1.5]], 2.5); } });
-      h.silk.box(0, PZ, 10.2, 9.2);
-      h.silk.box(-1.4, 5.6, 8.3, 2.5);
-      h.silk.text('U1  M3 ULTRA', -4.9, PZ - 4.8);
-      h.silk.text('J1  SSD', -6.6, 4.1);
-      h.silk.text('TACDEL LAB  /  ILLUSTRATIVE LAYOUT', -6.7, 6.95, 34);
-      h.silk.text('DESK SPACE PROGRAM  MISSION 01', 1.0, 6.95, 34);
-    }, { base: '#0c1116', traces: 240, vias: 460 });
-    P.board(14.4, 14.4, Y0, tex, 0, 0, 0x0c1116);
-
-    // the chip package: substrate, two dies, the UltraFusion bridge between them
-    mesh(rbox(9.8, 0.22, 8.8, 0.08), M.substrate, 0, Y0 + 0.11, PZ);
-    const DIE_Y = SUB_Y;
-    [-DIE_X, DIE_X].forEach(x => mesh(rbox(DIE_W, 0.12, DIE_D, 0.03), M.die, x, DIE_Y + 0.06, PZ));
-    mesh(new T.BoxGeometry(0.34, 0.1, 2.6), M.gold, 0, DIE_Y + 0.07, PZ);
-    const tileTop = DIE_Y + 0.126;
-    // per die: 40 GPU cores on the outer side (5 x 8), 16 CPU cores next to the bridge (2 x 8)
-    const gpu = [-1, 1].map(s => P.tiles(s * 3.15, PZ, 5, 8, 0.34, 0.28, 0.4, 0.37, tileTop));
-    const cpu = [-1, 1].map(s => P.tiles(s * 0.95, PZ, 2, 8, 0.46, 0.28, 0.54, 0.37, tileTop, new T.Color(0.05, 0.06, 0.12)));
-
-    const mem = P.memory(CHIPS, SUB_Y, { w: 2.2, d: 1.8, h: 0.13, cols: 8, rows: 4, cw: 0.2, cd: 0.34, px: 0.25, pz: 0.4 });
-
-    // bus: four 32-bit lanes from each package straight into its die, 1,024 bits in all
-    const lanes = [];
-    CHIPS.forEach(ch => {
-      const dir = Math.sign(PZ - ch.z);
-      for (let k = 0; k < 4; k++) {
-        const x = ch.x - 0.87 + k * 0.58;
-        lanes.push({ s: new T.Vector3(x, SUB_Y + 0.02, ch.z + dir * 0.9), e: new T.Vector3(x, SUB_Y + 0.02, PZ - dir * (DIE_D / 2)) });
+  if (!DSP.recipe) return;
+  const PZ = -0.6, SUB_Y = 1.1 + 0.22, CZ = PZ - 2.6;      // the package centre (x = 0), its top, the heatsink set back
+  DSP.recipe.machine({
+    id: 'mac', name: 'MAC STUDIO', mm: 197, width: 16.6, y0: 1.1,
+    case: { type: 'cutaway', material: 'alu', corner: 2.2, back: 'perforated' },
+    board: {
+      w: 14.4, d: 14.4, color: '#0c1116', random: [240, 460], traces: { n: 3, spread: 0.1, width: 2.5, to: 1.5 },
+      art(h) {
+        h.box(0, PZ, 10.2, 9.2); h.box(-1.4, 5.6, 8.3, 2.5);
+        h.text('U1  M3 ULTRA', -4.9, PZ - 4.8); h.text('J1  SSD', -6.6, 4.1);
+        h.text('TACDEL LAB  /  ILLUSTRATIVE LAYOUT', -6.7, 6.95, 34); h.text('DESK SPACE PROGRAM  MISSION 01', 1.0, 6.95, 34);
       }
-    });
-    const bus = DSP.board.bus(lanes, SUB_Y, { width: 0.44, per: 10, size: 0.11 });
-
-    // power delivery down both sides, small parts around the package
-    const ind = [], caps = [], mlcc = [], res = [];
-    for (let i = 0; i < 7; i++) { ind.push([-6.25, Y0 + 0.3, -4.6 + i * 0.95]); ind.push([6.25, Y0 + 0.3, -4.6 + i * 0.95]); }
-    for (let i = 0; i < 5; i++) { caps.push([-5.35, Y0 + 0.31, -3.9 + i * 1.0]); caps.push([5.35, Y0 + 0.31, -3.9 + i * 1.0]); }
-    P.inductors(ind, Y0);
-    P.polymerCaps(caps, Y0);
-    for (let i = 0; i < 30; i++) { mlcc.push([-4.5 + i * 0.31, Y0 + 0.05, PZ + 4.65]); mlcc.push([-4.5 + i * 0.31, Y0 + 0.05, PZ - 4.65]); }
-    for (let i = 0; i < 40; i++) res.push([3.2 + (i % 10) * 0.22, Y0 + 0.03, 4.3 + Math.floor(i / 10) * 0.3]);
-    P.ceramicCaps(mlcc);
-    P.resistors(res);
-
-    const { SSD_Y } = P.ssd(Y0, { x: -1.4, z: 5.6, lines: ['SSD module', 'removable, Apple', 'where models wait'] });
-    P.ports(Y0, 0.4, 0.2);
-
-    // cooler, lifted off and back (so it doesn't hide the chip): one big copper heatsink, two blowers behind it
-    const COOL_Y = 7.0, CZ = PZ - 2.6;
-    const coolG = new T.Group(); group.add(coolG); E.setParent(coolG);
-    mesh(rbox(8.2, 0.36, 5.6, 0.08), M.copper, 0, COOL_Y, CZ);
-    const fins = []; for (let i = 0; i < 42; i++) fins.push([-3.9 + i * 0.19, COOL_Y + 0.8, CZ]);
-    scatter(new T.BoxGeometry(0.05, 1.3, 5.3), M.copper, fins, true);
-    const fanA = P.fan(new T.Vector3(-3.4, 9.1, -6.4), 1.05), fanB = P.fan(new T.Vector3(3.4, 9.1, -6.4), 1.05);
-    E.setParent(group);
-    const dashM = new T.LineDashedMaterial({ color: 0x9ea4d2, dashSize: 0.25, gapSize: 0.18, transparent: true, opacity: 0.55 });
-    [[-3.8, -2.6], [3.8, -2.6], [-3.8, 2.6], [3.8, 2.6]].forEach(([x, z]) => {
-      const l = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(x, COOL_Y - 0.2, CZ + z), new T.Vector3(x * 1.2, SUB_Y, PZ + z * 1.6)]), dashM);
-      l.computeLineDistances(); E.add(l);
-    });
-
-    // the shell: a tall aluminium mini desktop (95 mm, the mug's height), soft rounded edges, a dark seam low down, a
-    // ring of vent holes on top and the spec plate on the front. Stylized, not the real product: no logo, no ports.
-    const S = DSP.shell, lid = new T.Group(); group.add(lid); E.setParent(lid);
-    const H = 8.2, shellM = M.alu.clone(); shellM.color.setHex(0xb4b9c3); shellM.userData.envTuned = true;
-    const hood = mesh(S.block(S.rounded(2.45), 17.1, 17.1, 0.02, H, 0.42), shellM, 0, 0, 0);
-    const seamM = std(0x121318, 0.6, 0.3);
-    mesh(S.band(S.rounded(2.47), 17.14, 17.14, 0.12, 0.08), seamM, 0, 1.6, 0, { noCast: true });
-    const holes = [];
-    [[1.3, 8], [2.2, 14], [3.1, 20]].forEach(([r, n]) => { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + r; holes.push([Math.cos(a) * r, H + 0.005, Math.sin(a) * r - 1.2]); } });
-    scatter(new T.CylinderGeometry(0.14, 0.14, 0.02, 12), seamM, holes, false);
-    mesh(new T.BoxGeometry(2.6, 0.07, 0.05), new T.MeshBasicMaterial({ color: new T.Color(0x27f2d2).multiplyScalar(1.2) }), 0, 1.1, 8.57, { noCast: true });
-    const plate = S.plate({ w: 5.4, h: 3.1, face: 'front', at: [0, 4.6, 8.58] });
-    E.setParent(group);
-    // the mug, at the Mac's scale (197 mm across)
-    S.mug(16.6 / 197, 13.9, -3.6, -Math.PI / 4);
-    const rig = S.rig({ lid, parts: [{ g: coolG, seat: [0, -5.25, 0] }], guides: dashM, glow: [shellM] });
-
-    P.tuneEnv();
-
-    const loadP = E.pool(160, 0x27f2d2, 0.28);
-    const outP = E.pool(80, 0xffc93c, 0.34);
-    const spillP = E.pool(160, 0xff3d9a, 0.22);
-    const SSD_C = new T.Vector3(-1.4, SSD_Y + 0.3, 5.6);
-
-    const labels = [
-      { id: 'mem', at: new T.Vector3(3.45, mem.CELL_Y, PZ - 2.95), title: 'Memory, on the chip: the fuel tank' },
-      { id: 'bus', at: new T.Vector3(2.6, SUB_Y + 0.05, PZ + 1.9), title: 'Memory bus: the fuel line' },
-      { id: 'gpu', at: new T.Vector3(3.15, tileTop, PZ + 0.6), title: 'GPU cores: the engine' },
-      { id: 'bridge', at: new T.Vector3(0, DIE_Y + 0.12, PZ + 0.8), title: 'UltraFusion' },
-      { id: 'ssd', at: new T.Vector3(-1.8, SSD_Y + 0.2, 5.6), title: 'SSD' },
-      { id: 'fan', at: new T.Vector3(3.4, 9.35, -6.4), title: 'Cooler, lifted off' }
-    ];
-    const animate = DSP.board.lightUp({ mem, gpu, cpu, bus, fans: [fanA, fanB], gpuBox: [0, PZ, 2 * DIE_W + 0.5, DIE_D + 0.25, DIE_Y + 0.14], loadFrom: SSD_C, loadP, outP, spillP });
-    E.setParent(null);
-
-    return {
-      group, animate, labels, outP, spillP,
-      shell: { rig, grab: [hood], plate, hint: new T.Vector3(1.5, H, 6.0), what: 'lid' },
-      chips: '8 packages', busBits: 1024,
-      notes: { bridge: 'two chips joined into one, 32 CPU cores', ssd: 'where models wait', fan: 'spins up under load' }, loadingLabel: 'ssd',
-      out: { from: new T.Vector3(3.15, tileTop + 0.05, PZ), spread: [2, 2], mid: new T.Vector3(1.0, 4.4, -4.6), to: new T.Vector3(-0.7, Y0 + 1.1, -7.7) },
-      glowAt: [0, 3, PZ], heatAt: [0, 2.4, PZ],
-      shots: {
-        '2': { pos: [2.3 + 7.0, 8.4, PZ + 2.95 + 7.2], tgt: [2.3, SUB_Y + 0.2, PZ + 2.95] },
-        '3': { pos: [3.1 + 5.6, 5.0, PZ + 8.4], tgt: [2.6, SUB_Y + 0.2, PZ] },
-        '4': { pos: [-1.8 - 5.3, 7.5, 5.4 + 8.6], tgt: [-1.8, Y0 + 0.3, 5.4] }
-      }
-    };
-  }
-
-  DSP.machines = DSP.machines || {};
-  DSP.machines.mac = { build, name: 'MAC STUDIO' };
+    },
+    chip: {
+      at: [0, PZ], substrate: [9.8, 8.8, 0.22, 0.08], dies: [[-2.2, PZ, 4.2, 3.3], [2.2, PZ, 4.2, 3.3]], bridge: [0, PZ, 0.34, 2.6],
+      // per die: 40 GPU cores on the outer side, 16 CPU cores next to the bridge
+      blocks: [
+        { kind: 'gpu', at: [-3.15, PZ], grid: [5, 8], tile: [0.34, 0.28], pitch: [0.4, 0.37] },
+        { kind: 'gpu', at: [3.15, PZ], grid: [5, 8], tile: [0.34, 0.28], pitch: [0.4, 0.37] },
+        { kind: 'cpu', at: [-0.95, PZ], grid: [2, 8], tile: [0.46, 0.28], pitch: [0.54, 0.37] },
+        { kind: 'cpu', at: [0.95, PZ], grid: [2, 8], tile: [0.46, 0.28], pitch: [0.54, 0.37] }
+      ],
+      marker: [0, PZ, 8.9, 3.55]
+    },
+    memory: { layout: 'package', chips: 8, pitch: 2.3, dist: 2.95, lanePitch: 0.58, inset: 0.9,
+      chip: { w: 2.2, d: 1.8, h: 0.13, cols: 8, rows: 4, cw: 0.2, cd: 0.34, px: 0.25, pz: 0.4 } },
+    bus: { bits: 1024, width: 0.44, per: 10, size: 0.11 },
+    power: {
+      inductors: [[-6.25, -4.6, 1, 7, 0, 0.95], [6.25, -4.6, 1, 7, 0, 0.95]], caps: [[-5.35, -3.9, 1, 5, 0, 1.0], [5.35, -3.9, 1, 5, 0, 1.0]],
+      mlcc: [{ ring: [0, PZ], sides: 'tb', n: 30, pitch: 0.31, d: 4.65, from: -4.5 }],
+      resistors: [[3.2, 4.3, 10, 4, 0.22, 0.3]]
+    },
+    parts: [{ part: 'ssd', at: [-1.4, 5.6], lines: ['SSD module', 'removable, Apple', 'where models wait'] }, { part: 'ports', offset: [0.4, 0.2] }],
+    // lifted off and back, so it doesn't hide the chip: one big copper heatsink, two blowers behind it
+    cooler: { type: 'heatsink', y: 7.0, at: [0, CZ], plate: [8.2, 5.6], fins: { n: 42, from: -3.9, pitch: 0.19, dy: 0.8, size: [0.05, 1.3, 5.3] },
+      fans: [[-3.4, 9.1, -6.4], [3.4, 9.1, -6.4]], fanK: 1.05, seat: -5.25, guides: { half: [3.8, 2.6], from: [0, CZ], to: [0, PZ], scale: [1.2, 1.6], dy: 0 } },
+    shell: {
+      type: 'box', outline: ['rounded', 2.45], h: 8.2, bevel: 0.42, material: { from: 'alu', color: 0xb4b9c3 }, seam: 1.6,
+      ventRings: [[[1.3, 8], [2.2, 14], [3.1, 20]], -1.2], light: { color: 'teal', bar: [2.6, 0.07], glow: 1.2, at: [0, 1.1, 8.57] }, hint: [1.5, 8.2, 6.0]
+    },
+    plate: { w: 5.4, h: 3.1, face: 'front', at: [0, 4.6, 8.58] },
+    mug: [13.9, -3.6],
+    load: [-1.4, 'ssd+.3', 5.6],
+    labels: [
+      ['mem', [3.45, 'cell', PZ - 2.95], 'Memory, on the chip: the fuel tank'],
+      ['bus', [2.6, 'sub+.05', PZ + 1.9], 'Memory bus: the fuel line'],
+      ['gpu', [3.15, 'tile', PZ + 0.6], 'GPU cores: the engine'],
+      ['bridge', [0, 'die+.12', PZ + 0.8], 'UltraFusion'],
+      ['ssd', [-1.8, 'ssd+.2', 5.6], 'SSD'],
+      ['fan', [3.4, 'fan+.25', -6.4], 'Cooler, lifted off']
+    ],
+    chipsText: '8 packages', loadingLabel: 'ssd',
+    notes: { bridge: 'two chips joined into one, 32 CPU cores', ssd: 'where models wait', fan: 'spins up under load' },
+    out: { from: [3.15, 'tile+.05', PZ], spread: [2, 2], mid: [1.0, 4.4, -4.6], to: [-0.7, 'board+1.1', -7.7] },
+    glowAt: [0, 3, PZ], heatAt: [0, 2.4, PZ],
+    shots: {
+      '2': { pos: [2.3 + 7.0, 8.4, PZ + 2.95 + 7.2], tgt: [2.3, SUB_Y + 0.2, PZ + 2.95] },
+      '3': { pos: [3.1 + 5.6, 5.0, PZ + 8.4], tgt: [2.6, SUB_Y + 0.2, PZ] },
+      '4': { pos: [-1.8 - 5.3, 7.5, 5.4 + 8.6], tgt: [-1.8, 1.1 + 0.3, 5.4] }
+    }
+  });
 })(window.DSP = window.DSP || {});
