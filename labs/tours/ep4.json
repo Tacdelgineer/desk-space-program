@@ -1,0 +1,98 @@
+{
+  "about": "Episode 4 of EPISODES.md as a tour: a long document flips the winner between the DGX Spark and the Mac Studio. Qwen3.8 27B at 4-bit, the question prompt, then the document. The Mac's wider bus wins the writing, the Spark's GPU wins the reading. Every number comes from labs/data through the mission's metrics.",
+  "id": "ep4",
+  "title": "The Mac beats my Spark, until I paste a document",
+  "autoplayS": 20,
+  "base": { "machine": "mac", "model": "q27", "bits": "4", "prompt": "q", "crew": 1 },
+  "acts": [
+    { "id": "question", "title": "Question" },
+    { "id": "document", "title": "Document" },
+    { "id": "report", "title": "Report" }
+  ],
+  "steps": [
+    {
+      "act": "question", "title": "A quick question: the Mac wins", "cam": "2", "trip": ["memory", "bus", "gpu"],
+      "state": { "machine": "mac", "t": 3.0, "slow": 1 },
+      "text": [
+        "{model} on {the}, asked a short question.",
+        "Writing is memory work, and the Mac's wide bus moves {bw}.",
+        "It writes {writeTps} and is done in {doneS}."
+      ],
+      "metaphor": "Think of it as a wide fuel line: more fuel per second, more words per second.",
+      "chips": [
+        { "k": "doneS", "label": "done in" },
+        { "k": "writeTps", "label": "writing" },
+        { "k": "bw", "label": "memory bus" }
+      ],
+      "breakIt": { "label": "make it 16-bit", "set": { "bits": "16" }, "caption": "More bytes per word: even the wide bus slows down." },
+      "caption": "A quick question: the Mac is done in {doneS:mac}."
+    },
+    {
+      "act": "question", "title": "The Spark falls behind", "cam": "2", "trip": ["memory", "bus"],
+      "state": { "machine": "spark", "t": 6.0, "slow": 1 },
+      "text": [
+        "The same question on {the}.",
+        "Its bus moves {bw}, against the Mac's {bw:mac}, so each word waits longer.",
+        "It writes {writeTps} and needs {doneS}."
+      ],
+      "metaphor": "Think of it as the same engine on a narrower fuel line.",
+      "chips": [
+        { "k": "doneS", "label": "done in" },
+        { "k": "writeTps", "label": "writing" },
+        { "k": "bw", "label": "memory bus" }
+      ],
+      "breakIt": { "label": "use the 35B MoE", "set": { "model": "q36" }, "caption": "A model that reads less per word: the Spark speeds up." },
+      "caption": "Same question: the Spark needs {doneS:spark}."
+    },
+    {
+      "act": "document", "title": "Now paste a 30-page document", "cam": "3", "trip": ["gpu"],
+      "state": { "machine": "spark", "prompt": "doc", "t": 5.0, "slow": 1 },
+      "text": [
+        "Reading a long prompt is math, not memory: every GPU block works at once.",
+        "{The} reads {readTps}.",
+        "The whole document is in after {readS}."
+      ],
+      "metaphor": "Think of it as a sprinter: the race is short, so the engine counts.",
+      "chips": [
+        { "k": "readTps", "label": "reading" },
+        { "k": "readS", "label": "to read it" },
+        { "k": "gpuRead", "label": "GPU math used" }
+      ],
+      "breakIt": { "label": "paste a whole codebase", "set": { "prompt": "code" }, "caption": "Four times the reading: the GPU sprints for longer." },
+      "caption": "Reading is math. The Spark reads {readTps:spark}."
+    },
+    {
+      "act": "document", "title": "The Mac's GPU reads slower", "cam": "3", "trip": ["gpu"],
+      "state": { "machine": "mac", "prompt": "doc", "t": 12.0, "slow": 1 },
+      "text": [
+        "{The} has the faster bus but less GPU math.",
+        "It reads {readTps}, so the document takes {readS} before the first word.",
+        "Its faster writing can't win that back: done in {doneS}."
+      ],
+      "metaphor": "Think of it as a truck with a huge tank and a small engine, stuck on a hill.",
+      "chips": [
+        { "k": "readTps", "label": "reading" },
+        { "k": "readS", "label": "to read it" },
+        { "k": "doneS", "label": "done in" }
+      ],
+      "breakIt": { "label": "back to the question", "set": { "prompt": "q" }, "caption": "A short prompt: the Mac's reading hardly matters." },
+      "caption": "The Mac reads at {readTps:mac}. The winner flips."
+    },
+    {
+      "act": "report", "title": "Mission Report", "cam": "1", "trip": ["you"], "report": true, "weight": 1.3,
+      "state": { "machine": "spark", "prompt": "doc", "t": 23.0, "slow": 1 },
+      "text": [
+        "The same document on five machines.",
+        "Between the Spark and the Mac the winner flips; the graphics cards win both rounds."
+      ],
+      "metaphor": "Think of it as a race with two legs: one for the engine, one for the fuel line.",
+      "chips": [
+        { "k": "doneS", "m": "spark", "label": "DGX Spark" },
+        { "k": "doneS", "m": "mac", "label": "Mac Studio" },
+        { "k": "doneS", "m": "rtx5090", "label": "RTX 5090" }
+      ],
+      "breakIt": { "label": "back to the question", "set": { "prompt": "q" }, "caption": "The question again: the Mac is back in front of the Spark." },
+      "caption": "Next: I gave my idle GPU 32 jobs."
+    }
+  ]
+}

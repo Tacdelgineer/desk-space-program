@@ -1,3 +1,9 @@
 node_modules/
 dist/
 live/.run/
+# generated: /check pictures, film renders, Shorts (scripts/)
+out/
+shorts/
+# music for the Shorts stays local: scripts/make-short.mjs uses whatever is in assets/music/
+assets/music/*
+!assets/music/README.md

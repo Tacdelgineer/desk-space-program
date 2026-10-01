@@ -1,0 +1,81 @@
+name: Submit a benchmark from your machine
+description: Your own llama.cpp or MLX run of a lab model, so the lab can show it as a reported number.
+title: "Benchmark: <machine>, <model>, <quant>"
+labels: [benchmark]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! Accepted runs go into `labs/data/reported/` tagged **reported**, with a link back to this issue.
+        The lab compares a short question (about 300 tokens in) and a long document (about 8,000 tokens in), each
+        writing about 150 tokens, one request at a time. `llama-bench -p 512,8192 -n 128` is close enough; say what
+        you ran. Please leave out anything private (host names, IP addresses, file paths with your user name).
+  - type: input
+    id: machine
+    attributes:
+      label: Machine
+      description: Make and model, or the parts list for a desktop.
+      placeholder: "e.g. RTX 4090 in a desktop with 64 GB of RAM; Mac Studio M3 Ultra 256 GB"
+    validations:
+      required: true
+  - type: input
+    id: memory
+    attributes:
+      label: Memory and bandwidth
+      description: How much memory the GPU can use, and its bandwidth if you know it (link the spec sheet).
+      placeholder: "24 GB GDDR6X, 1,008 GB/s"
+  - type: dropdown
+    id: model
+    attributes:
+      label: Model
+      options:
+        - Qwen3.8 27B
+        - Qwen3.6 35B-A3B (MoE)
+        - Qwen3.8-Flash-Next
+        - Gemma 4 E4B
+        - Another model (say which below)
+    validations:
+      required: true
+  - type: input
+    id: file
+    attributes:
+      label: Model file and compression
+      description: The exact file (Hugging Face link if you can), and its quantization.
+      placeholder: "unsloth/Qwen3.8-27B-GGUF, UD-Q4_K_M"
+    validations:
+      required: true
+  - type: input
+    id: engine
+    attributes:
+      label: Engine and version
+      placeholder: "llama.cpp b9653 (llama-bench), CUDA 13.0; or MLX 0.32"
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact command line.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Results
+      description: Paste the output table. Reading speed (prompt tokens per second) and writing speed (generated tokens per second), with the prompt length of each.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Power limit, clocks, other programs on the GPU, flash attention, cache type, how many runs.
+  - type: checkboxes
+    id: ok
+    attributes:
+      label: Permission
+      options:
+        - label: The lab may publish these numbers with a link to this issue.
+          required: true

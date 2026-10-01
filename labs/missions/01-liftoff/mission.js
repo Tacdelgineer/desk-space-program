@@ -12,7 +12,7 @@
    stay in step; a MIDI controller can drive the console too (kit/midi.js).
    Live mode (section 6) switches on when live/bridge.mjs serves the page: a chat box that runs a real model
    on the Spark, real memory, power and temperature, and the Benchmark button.
-   The guided tour (section 7, kit/tour.js, labs/tours/*.json): ?tour=life|ep1|ep3, &autoplay=1 to play it through
+   The guided tour (section 7, kit/tour.js, labs/tours/*.json): ?tour=life|ep1|ep3|ep4, &autoplay=1 to play it through
    for a recording; the console slides away while it runs and comes back for free play.
    ========================================================= */
 (function (DSP) {
@@ -119,7 +119,9 @@
       if (box.openIn > 0) { box.openIn -= dt; if (box.openIn <= 0) openCase(true); }
       if (!box.drag && box.k !== box.to) box.k = box.to > box.k ? Math.min(box.to, box.k + dt / OPEN_S) : Math.max(box.to, box.k - dt / (swap ? SWAP_CLOSE_S : CLOSE_S));
       cur.shell.rig.set(box.k);
-      cur.shell.rig.away(E.shotNow() !== '1' && !box.drag ? 1 : 0, dt);     // a close-up looks inside: the hanging lid lifts out of its view
+      // a close-up looks inside, and a 16:9 tour has its card where the lid would hang: the lid lifts right out of the frame
+      const tourWide = tourOn && !document.body.classList.contains('tour-tall');
+      cur.shell.rig.away((E.shotNow() !== '1' || tourWide) && !box.drag ? 1 : 0, dt);
       cur.shell.rig.glow(!!cur.lidHot, dt);
       const lidOpen = box.to >= 1 || box.openIn > 0;
       if (lidOpen !== lidShown) { lidShown = lidOpen; deck.setLid(lidOpen); }
@@ -844,7 +846,8 @@
       layout() { E.resize(); },
       shot(k) { E.goShot(k); }
     };
-    const TOURS = { life: 'tour-life', ep1: 'tour-ep1', ep3: 'tour-ep3' };
+    // every <script type="application/json" id="tour-<id>"> on the page is a tour: ?tour=<id>
+    const TOURS = {}; document.querySelectorAll('script[id^="tour-"]').forEach(s => { TOURS[s.id.slice(5)] = s.id; });
     function startTour(id, autoplay) {
       return DSP.model.loadData([TOURS[id] || TOURS.life]).then(([data]) => DSP.tour.start(data, tourLab, { autoplay }));
     }

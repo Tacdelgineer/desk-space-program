@@ -7,7 +7,8 @@
    On screen: the step card (left), the trip map across the top (SSD -> memory -> bus -> GPU -> port -> you) with a live
    clock, a big caption at the bottom, a scrubber with the acts, 1/2x, 1x, 2x, play/pause, the arrow keys for previous
    and next, Esc to leave, and a "What if..." panel (dense or MoE, machine, crew 1 or 32, 4- or 16-bit). A tall window
-   (9:16) gets the card on top, the machine in the middle and the caption at the bottom.
+   (9:16) gets the card on top, the machine in the middle and the caption at the bottom. Autoplay (a recording) trims
+   the card to the title and one big number (the chip a step names in `big`, the first by default) and hides What if.
    The tour knows nothing about any one mission: start(data, lab, opts) takes a lab object with
      apply(state) set the selection, seek(t) put the simulation at t, timeline() { readS, totalS, loadS, fits },
      metric(chip, state) { text, unit, tag }, report(state) [{ name, text, tag, done }], realLine(state),
@@ -38,6 +39,7 @@
     const title = el('h2', 'tour-title', '', card);
     const body = el('div', 'tour-body', null, card);
     const meta = el('p', 'tour-meta', '', card);
+    const big = el('div', 'tour-big', null, card);
     const chips = el('div', 'tour-chips', null, card);
     const report = el('div', 'tour-report', null, card);
     const breakBtn = el('button', 'btn tour-break', '', card); breakBtn.type = 'button';
@@ -63,7 +65,7 @@
     exit.addEventListener('click', () => stop());
     breakBtn.addEventListener('click', () => { T.broken = !T.broken; refreshState(); });
     reset.addEventListener('click', () => { T.over = {}; T.broken = false; refreshState(); });
-    return { root, trip, stops, clock, card, head, title, body, meta, chips, report, breakBtn, real, what, whatRows, reset, caption, bar, play, scrub, rateBtns };
+    return { root, trip, stops, clock, card, head, title, body, meta, big, chips, report, breakBtn, real, what, whatRows, reset, caption, bar, play, scrub, rateBtns };
   }
 
   // The tour's own keys come first (capture): arrows step, Space plays, Esc leaves; the lab's keys stay off meanwhile
@@ -117,12 +119,17 @@
     s.text.forEach(p => el('p', null, fill(p, st), ui.body));
     ui.meta.textContent = fill(s.metaphor, st);
     ui.chips.innerHTML = '';
-    s.chips.forEach(c => {
-      const m = T.lab.metric(c, st), d = el('div', 'tour-chip', null, ui.chips);
+    const chip = (c, host, cls) => {
+      const m = T.lab.metric(c, st), d = el('div', cls, null, host);
       el('span', 'lbl', fill(c.label, st), d);
       const v = el('b', null, m.text, d); if (m.unit) el('small', null, (m.unit === '%' || m.unit === '×' ? '' : ' ') + m.unit, v);
       el('i', 'meas' + (m.tag === 'reported' ? ' rep' : m.tag === 'estimated' ? ' est' : ''), m.tag, d);
-    });
+    };
+    s.chips.forEach(c => chip(c, ui.chips, 'tour-chip'));
+    // autoplay shows the title, the caption and one big number: the step's `big` chip (the first by default)
+    ui.big.innerHTML = '';
+    ui.big.hidden = !!s.report || !s.chips.length;
+    if (!ui.big.hidden) chip(s.chips[s.big || 0], ui.big, 'tour-big-chip');
     ui.report.innerHTML = '';
     ui.report.hidden = !s.report;
     if (s.report) T.lab.report(st).forEach(r => {
@@ -266,5 +273,26 @@
   }
   window.addEventListener('resize', () => { if (T) { document.body.classList.toggle('tour-tall', tall()); fitCaption(); T.lab.layout(); } });
 
-  DSP.tour = { start, stop, tick, go: i => go(i), active: () => !!T, state: () => T && { i: T.i, t: T.t, playing: T.playing, state: T.state, broken: T.broken, n: T.data.steps.length } };
+  // The running tour as text, every number filled in and tagged, with each step's place in an autoplay recording
+  // (start and end in seconds). labs/tools/tour-text.mjs prints it; scripts/make-short.mjs builds a Short from it.
+  function outline() {
+    if (!T) return null;
+    const auto = T.autoplay, chipOf = (c, st) => { const m = T.lab.metric(c, st); return { label: fill(c.label, st), text: m.text, unit: m.unit, tag: m.tag }; };
+    let at = 0;
+    const steps = T.data.steps.map((s, i) => {
+      const st = Object.assign({}, T.data.base, s.state), d = auto ? dur(i) : null;
+      const o = {
+        i, act: (T.data.acts.find(a => a.id === s.act) || {}).title, cam: s.cam || '1', title: fill(s.title, st), caption: fill(s.caption, st),
+        text: s.text.map(p => fill(p, st)), metaphor: fill(s.metaphor, st), chips: s.chips.map(c => chipOf(c, st)), big: s.report ? null : chipOf(s.chips[s.big || 0], st),
+        report: s.report ? T.lab.report(st) : null, start: auto ? at : null, end: auto ? at + d : null
+      };
+      if (auto) at += d;
+      return o;
+    });
+    const sh = T.data.short || {}, st0 = Object.assign({}, T.data.base);       // the title and the Short's words: the tour's setup
+    const short = {}; Object.keys(sh).forEach(k => { short[k] = typeof sh[k] === 'string' ? fill(sh[k], st0) : sh[k]; });
+    return { id: T.data.id, title: fill(T.data.title, st0), autoplayS: auto ? at : null, holdS: HOLD_S, steps, short };
+  }
+
+  DSP.tour = { start, stop, tick, outline, go: i => go(i), active: () => !!T, area: () => T && area(), state: () => T && { i: T.i, t: T.t, playing: T.playing, state: T.state, broken: T.broken, n: T.data.steps.length } };
 })(window.DSP = window.DSP || {});

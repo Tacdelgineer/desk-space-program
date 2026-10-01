@@ -11,7 +11,7 @@ Status: idea → ready (preset works, numbers filled) → filmed → posted.
 | 1 | 01 Liftoff | My AI box waits 99% of the time | Spark, Qwen3.8 27B, 4-bit, question | GPU (3) while writing | ready |
 | 2 | 01 Liftoff | The fastest gaming GPU can't run this | 5090, Qwen3.8-Flash-Next, 4-bit | memory (2), overflow | ready |
 | 3 | 01 Liftoff | The bigger model writes 5x faster | Spark, Qwen3.8 27B vs Qwen3.6 35B MoE, 4-bit | memory (2), cells flashing | ready |
-| 4 | 01 Liftoff | A long document flips the winner | Spark vs Mac, Qwen3.8 27B, document | overview (1) + race | dropped until the Mac has reported numbers |
+| 4 | 01 Liftoff | The Mac beats my Spark, until I paste a document | Spark vs Mac, Qwen3.8 27B, 4-bit, question then document | memory (2), then GPU (3) while reading | ready |
 | 5 | 03 Skylab | I gave my idle GPU 32 jobs | Spark, Qwen3.8 27B, crew 1 → 32 | GPU (3) lighting up | ready (filmed in the 01 lab, which has the crew dial) |
 | 6 | 01 Liftoff | Inside a 5090 vs inside a Spark | switch machines, Qwen3.6 35B MoE | overview (1) | ready |
 | 7 | 01 Liftoff | No desk can hold this model | Mac, Qwen3.8-Max, 4-bit | memory (2), overflow | ready |
@@ -111,11 +111,16 @@ Source of each number: the lists above. The dense Qwen3.8 27B on the Spark: 12.8
 Shot list: 1) first link, key 2: the Qwen3.8 27B cells, a sweep through all of them for every token. 2) key 3: 12.8 tokens/s, the GPU mostly dark. 3) second link, key 2: only a few cells flash per token. 4) key 1 overview while the answer races out of the ports.
 
 ### Episode 4
-Status: dropped until the Mac has reported numbers. Session G (2026-09-30) found them for Qwen3.8 27B (MLX, `reported/mac.json`)
-and the flip still holds: question, Mac 5.8 s (rep.) against Spark 12 s (meas.); document, Spark 23 s (meas.) against Mac
-31 s (rep.). The 5090 still wins both rounds (2.0 s rep., 4.0 s rep. reading, writing est. from rep.). Ready to revisit as
-Spark vs Mac with the race panel hidden. The reason it needed a rework: with the new lineup the flip still happens between the Spark and the Mac (Qwen3.8 27B, question: Spark 12 s measured, Mac 5.0 s est.; document: Spark 23 s measured, Mac 33 s est.), but the 5090 fits this model and wins both rounds (1.9 s, 5.7 s est.), so the race panel never says "the winner changes". Qwen3.8-Flash-Next keeps the 5090 out but doesn't flip (document: Spark 19 s measured, Mac 9.1 s est.). Options: film it as Spark vs Mac only with the race panel hidden, or wait until the Mac is measured (its reading speed is a placeholder, and the Spark read 2-20x slower than its own placeholder said).
-Preset links (Spark vs Mac, for reference): https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q27&bits=4&prompt=q&crew=1&shot=1&speed=5 and https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q27&bits=4&prompt=doc&crew=1&shot=1&speed=5
+Tour (record it as it plays, about 20 s): https://tacdelgineer.github.io/desk-space-program/01-liftoff/?tour=ep4&autoplay=1
+Preset links: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=mac&model=q27&bits=4&prompt=q&crew=1&shot=2&record=1
+  then: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q27&bits=4&prompt=q&crew=1&shot=2&record=1
+  then the document: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q27&bits=4&prompt=doc&crew=1&shot=3&record=1
+  and: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=mac&model=q27&bits=4&prompt=doc&crew=1&shot=3&record=1
+Guess card options: The Mac answers a question first. Paste a 30-page document and... A) the Mac wins by more / B) the Spark wins / C) a tie
+Mission Report: M01 LIFTOFF   QWEN3.8 27B, 4-BIT, DOCUMENT | FITS? YES / YES / YES | TOKENS/S 12 (meas.) / 80 (est. from rep.) / 25 (rep.) | DONE IN 23 s (meas.) / 4.0 s (rep. reading, writing est. from rep.) / 31 s (rep.) | Writing is memory, reading is math: the Mac writes faster, the Spark reads faster | NEXT: I gave my idle GPU 32 jobs
+Changed (Session H, 2026-09-30): un-dropped, filmed as Spark vs Mac only. The hook names the two machines because the 5090 wins both rounds (question 2.0 s rep., document 4.0 s); the race panel stays hidden (the tour hides it, and so does record mode). The tour's Mission Report shows all five machines.
+Source of each number: the lists above. The question: Mac 5.8 s (rep.; 30.71 tokens/s writing, 325.3 reading, `reported/mac.json`, MLX) against the Spark's 12 s (meas.; 12.84 writing, 571.3 reading, `measured/spark.json`). The document: Spark 23 s (meas.; reads 753.1 tokens/s, 11 s, writes 12.48) against the Mac's 31 s (rep.; reads 325.8, 25 s, writes 24.58). Bus: `bw` 273 against 819 GB/s (reported). The Spark reads the document 2.3x faster (753.1 / 325.8), the Mac writes 2.0x faster (24.58 / 12.48).
+Shot list: 1) first link, key 2: the Mac's 32 lanes, the answer types out in 5.8 s. 2) second link, key 2: the Spark's 8 lanes, 12 s. 3) third link, key 3: all 48 GPU blocks blaze for 11 s while the Spark reads the document (trim it). 4) fourth link, key 3: the Mac's GPU cores read for 25 s (trim harder). 5) key 1 on the Spark for the loop.
 
 ### Episode 5
 Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q27&bits=4&prompt=q&crew=1&shot=3&record=1

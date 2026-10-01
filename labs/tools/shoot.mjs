@@ -31,12 +31,12 @@ const [W, H] = (process.env.SHOOT_SIZE || '1920x1080').split('x').map(Number), S
 const KEEP_UI = !!process.env.SHOOT_UI, PHASE = process.env.SHOOT_PHASE || 'writing', CASE = process.env.SHOOT_CASE || '', EVAL = process.env.SHOOT_EVAL || '';
 const CACHE = path.join(os.tmpdir(), 'dsp-shoot-cache');
 
-const LAUNCH = process.env.SHOOT_GPU
+export const LAUNCH = process.env.SHOOT_GPU
   ? { channel: 'chromium', args: ['--use-angle=gles-egl', '--ignore-gpu-blocklist'] }
   : { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] };
 
 // Runs before the page's own scripts.
-function determinism(seed) {
+export function determinism(seed) {
   let s = seed >>> 0;
   const next = () => { s = (s + 0x6D2B79F5) >>> 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const native = Math.random.bind(Math);
@@ -49,12 +49,13 @@ function determinism(seed) {
   window.__step = (n, dt) => { for (let i = 0; i < n; i++) { now += dt; const run = queue; queue = []; run.forEach(cb => cb(now)); } };
 }
 
-async function cachedRoute(ctx) {
+export async function cachedRoute(ctx, keepFonts) {
   fs.mkdirSync(CACHE, { recursive: true });
   // Board text is drawn on canvases before the web fonts arrive (HANDOFF gotcha 9), so whether it
   // uses the fallback or the real font is a race. Block the font files to make it always the fallback.
-  await ctx.route(/^https:\/\/fonts\.gstatic\.com\//, route => route.abort());
-  await ctx.route(/^https:\/\/(cdn\.jsdelivr\.net|fonts\.googleapis\.com)\//, async route => {
+  // keepFonts: let them in (from the cache), for pictures a person looks at rather than compares.
+  if (!keepFonts) await ctx.route(/^https:\/\/fonts\.gstatic\.com\//, route => route.abort());
+  await ctx.route(keepFonts ? /^https:\/\/(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)\// : /^https:\/\/(cdn\.jsdelivr\.net|fonts\.googleapis\.com)\//, async route => {
     const url = route.request().url(), f = path.join(CACHE, createHash('sha1').update(url).digest('hex'));
     if (fs.existsSync(f + '.body')) {
       const meta = JSON.parse(fs.readFileSync(f + '.json', 'utf8'));
@@ -143,7 +144,9 @@ async function compare(a, b, diffDir) {
   process.exit(bad ? 1 : 0);
 }
 
-const argv = process.argv.slice(2);
-if (argv[0] === '--compare') await compare(argv[1], argv[2], argv[3]);
+// run as a script (other tools import the helpers above)
+const argv = process.argv.slice(2), main = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+if (!main) { /* imported */ }
+else if (argv[0] === '--compare') await compare(argv[1], argv[2], argv[3]);
 else if (argv.length >= 2) await shoot(argv[0], argv[1], (argv[2] || '1,2,3').split(','));
 else { console.error('usage: shoot.mjs <page.html> <outDir> [1,2,3]   |   shoot.mjs --compare <dirA> <dirB> [diffDir]'); process.exit(2); }

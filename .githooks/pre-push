@@ -1,0 +1,5 @@
+#!/bin/sh
+# Before every push: /check (build, key-state screenshots, and the scan that keeps anything private out of dist/).
+# Enable once per clone:  git config core.hooksPath .githooks
+# A machine without a browser:  CHECK_ARGS=--no-shots git push   (the scan still runs)
+exec node scripts/check.mjs $CHECK_ARGS

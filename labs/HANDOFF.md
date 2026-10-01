@@ -50,7 +50,8 @@ Everything below was learned the hard way. Read it before touching the code.
   1/2x 1x 2x, the arrow keys, a "What if..." panel, a "break it" button per step and a real-data line. The main tour,
   "The life of one answer", has 12 steps in Load, Read, Write, Answer; episodes 1 and 3 have their own. `?tour=life&autoplay=1`
   plays it in about 30 s with the interface on, so a plain screen recording is a finished video; a tall window gets the
-  9:16 layout. The console slides away during a tour and comes back after.
+  9:16 layout. The console slides away during a tour and comes back after. Session H: autoplay trims the card to the
+  title and one big tagged number (the caption stays), and in 16:9 the open lid lifts right out of the frame.
 
 ## Stack and why
 
@@ -208,5 +209,8 @@ Not now: drag-to-load crates, pulling the cooler off by hand, sound, share links
 - **The Shorts pack** is described in `docs/shorts-template.md`. Every episode ends on a Mission
   Report with three columns (DGX Spark, RTX 5090, Mac Studio; a fourth, Strix Halo, from
   episode 9 on, a fifth, RTX Pro 6000, from 11 on) and rows FITS?, TOKENS/S, DONE IN. Those numbers must come from the data files, never typed by hand.
+- **Session H (2026-09-30): making future work cheap.** `CLAUDE.md` holds the standing rules, the `desk-lab` skill
+  (`.claude/skills/desk-lab/`) the file map and workflows, `.claude/commands/` the slash commands (/add-machine,
+  /new-episode, /new-tour, /make-short, /check). `scripts/check.mjs` is /check and the pre-push hook.
 - **`EPISODES.md`** is the list of Shorts. Each one has a preset link that opens the lab in the
   exact state to film. Keep it in step with the missions.

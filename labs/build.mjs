@@ -1,4 +1,4 @@
-// Builds dist/ at the repo root: one self-contained page per live mission, plus a hub page.
+// Builds dist/ at the repo root: one self-contained page per live mission, plus a hub page, and labs/assets/ as files.
 //   node labs/build.mjs
 // Local <script src>, <link rel="stylesheet"> and data-file <script src> tags are inlined. Anything
 // on the web (three.js, fonts) is left as it is. No packages needed.
@@ -33,11 +33,27 @@ function inline(page, dir) {
   });
 }
 
+// Every page gets the link preview (labs/assets/preview.png, made by scripts/preview.mjs) unless it names its own.
+const SITE = 'https://tacdelgineer.github.io/desk-space-program/';
+function preview(page, rel) {
+  if (/property="og:image"/.test(page)) return page;
+  const title = (page.match(/<title>([^<]*)<\/title>/) || [])[1] || 'Desk Space Program';
+  const desc = (page.match(/<meta name="description" content="([^"]*)"/) || [])[1] || '';
+  const img = SITE + 'assets/preview.png', url = SITE + rel.replace(/index\.html$/, '');
+  const tags = [['og:type', 'website'], ['og:site_name', 'Desk Space Program'], ['og:title', title], ['og:description', desc], ['og:url', url],
+    ['og:image', img], ['og:image:width', '1200'], ['og:image:height', '630'], ['og:image:alt', 'An opened-up DGX Spark on a display stand, a coffee mug beside it and a mission control console in front']]
+    .map(([k, v]) => `<meta property="${k}" content="${v}">`)
+    .concat([['twitter:card', 'summary_large_image'], ['twitter:title', title], ['twitter:description', desc], ['twitter:image', img]].map(([k, v]) => `<meta name="${k}" content="${v}">`));
+  return page.replace('</title>', '</title>\n' + tags.join('\n'));
+}
+
 const missions = JSON.parse(read(path.join(labs, 'data', 'missions.json'))).missions;
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 const written = [];
-const write = (rel, text) => { const f = path.join(dist, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); written.push([rel, Buffer.byteLength(text)]); };
+const write = (rel, text) => { if (rel.endsWith('.html')) text = preview(text, rel); const f = path.join(dist, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); written.push([rel, Buffer.byteLength(text)]); };
+// images and other files pages link to by URL (not inlined): labs/assets/ -> dist/assets/
+fs.cpSync(path.join(labs, 'assets'), path.join(dist, 'assets'), { recursive: true });
 
 // one page per live mission
 for (const m of missions.filter(x => x.status === 'live')) {
