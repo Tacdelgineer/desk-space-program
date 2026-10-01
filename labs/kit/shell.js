@@ -130,16 +130,25 @@
   function rig(o) {
     const base = o.parts.map(p => p.g.position.clone()), lid0 = o.lid.position.clone();
     const park = o.park || [9.5, 10];
-    let k = -1, glowK = 0;
+    let k = -1, glowK = 0, awayK = 0;
     o.glow.forEach(m => { m.emissive = m.emissive || new T.Color(0x000000); });
+    // the hanging lid's place; away (0-1) lifts it further, out of a close-up's view
+    function placeLid() {
+      const pop = smooth(0, 0.12, k), rise = smooth(0.08, 0.78, k), settle = Math.sin(smooth(0.6, 1, k) * Math.PI) * 0.04, up = smooth(0, 1, awayK) * rise;
+      o.lid.position.set(lid0.x, lid0.y + 0.45 * pop + park[0] * rise + 26 * up, lid0.z - park[1] * rise - 6 * up);
+      o.lid.rotation.set(-0.3 * rise - settle, 0, 0.05 * rise);
+      o.lid.visible = up < 0.98;
+    }
+    function away(f, dt) {
+      const a = awayK + (f - awayK) * Math.min(1, (dt || 0.016) * 4);
+      if (Math.abs(a - awayK) < 1e-4 && a !== f) return;
+      awayK = Math.abs(a - f) < 0.002 ? f : a; placeLid();
+    }
     function set(v) {
       if (v === k) return;
       k = v;
       // unlatch (a small pop), then rise and tip back to where it hangs; a little sway as it settles
-      const pop = smooth(0, 0.12, k), rise = smooth(0.08, 0.78, k), settle = Math.sin(smooth(0.6, 1, k) * Math.PI) * 0.04;
-      o.lid.position.set(lid0.x, lid0.y + 0.45 * pop + park[0] * rise, lid0.z - park[1] * rise);
-      o.lid.rotation.set(-0.3 * rise - settle, 0, 0.05 * rise);
-      o.lid.visible = true;
+      placeLid();
       o.parts.forEach((p, i) => {
         const y = p.y || [0.3, 1], z = p.z || y;
         const ay = 1 - smooth(y[0], y[1], k), az = 1 - smooth(z[0], z[1], k);
@@ -153,7 +162,7 @@
       glowK += ((on ? 1 : 0) - glowK) * Math.min(1, (dt || 0.016) * 12);
       o.glow.forEach(m => m.emissive.setRGB(0.3 * glowK, 0.22 * glowK, 0.05 * glowK));
     }
-    return { set, glow, k: () => k };
+    return { set, glow, away, k: () => k };
   }
 
   DSP.shell = { rounded, chamfered, block, band, plate, mug, rig, smooth };

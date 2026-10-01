@@ -1,0 +1,81 @@
+{
+  "about": "Episode 3 of EPISODES.md as a tour: the bigger model writes faster. Qwen3.8 27B against Qwen3.6 35B-A3B on the DGX Spark, the question prompt, the close-up on the memory. Every number comes from labs/data through the mission's metrics.",
+  "id": "ep3",
+  "title": "The bigger model writes {moeX:spark} faster",
+  "autoplayS": 16,
+  "base": { "machine": "spark", "model": "q27", "bits": "4", "prompt": "q", "crew": 1 },
+  "acts": [
+    { "id": "dense", "title": "Dense" },
+    { "id": "moe", "title": "Experts" },
+    { "id": "report", "title": "Report" }
+  ],
+  "steps": [
+    {
+      "act": "dense", "title": "27B: every cell, every word", "cam": "2", "trip": ["memory", "bus", "gpu"],
+      "state": { "t": 4.2, "slow": 20 },
+      "text": [
+        "{model} is dense: all {totalB} of its parameters work on every word.",
+        "So every word reads all {perTokenGB} from memory: watch the sweep cross every cell.",
+        "It writes {writeTps}."
+      ],
+      "metaphor": "Think of it as reading the whole encyclopedia for every word you write.",
+      "chips": [
+        { "k": "totalB", "label": "parameters" },
+        { "k": "perTokenGB", "label": "read per word" },
+        { "k": "writeTps", "label": "writing" }
+      ],
+      "breakIt": { "label": "make it 16-bit", "set": { "bits": "16" }, "caption": "Full size: even more to read for every word." },
+      "caption": "A dense model reads every cell for every word."
+    },
+    {
+      "act": "moe", "title": "35B: only a slice", "cam": "2", "trip": ["memory", "bus", "gpu"],
+      "state": { "model": "q36", "t": 1.0, "slow": 20 },
+      "text": [
+        "{model} is bigger: {totalB} parameters, more cells lit.",
+        "But it is a mixture of experts, and each word reads only {activeB} of them.",
+        "Only a handful of cells flash per word."
+      ],
+      "metaphor": "Think of it as a library where each question needs one aisle.",
+      "chips": [
+        { "k": "totalB", "label": "parameters" },
+        { "k": "activeB", "label": "read per word" },
+        { "k": "writeTps", "label": "writing" }
+      ],
+      "breakIt": { "label": "back to the dense 27B", "set": { "model": "q27" }, "caption": "Dense again: every word reads every cell." },
+      "caption": "The bigger model reads only a slice for each word."
+    },
+    {
+      "act": "moe", "title": "{moeX} faster on the same machine", "cam": "3", "trip": ["gpu"],
+      "state": { "model": "q36", "t": 1.8, "slow": 20 },
+      "text": [
+        "Both answer the same question on {the}.",
+        "The 35B writes {writeTps}; the dense 27B writes {writeTps:q27}.",
+        "Fewer bytes per word means more words per second."
+      ],
+      "metaphor": "Think of it as a lighter truck on the same road.",
+      "chips": [
+        { "k": "writeTps", "model": "q27", "label": "dense 27B" },
+        { "k": "writeTps", "model": "q36", "label": "35B experts" },
+        { "k": "moeX", "label": "faster" }
+      ],
+      "breakIt": { "label": "use an RTX 5090", "set": { "machine": "rtx5090" }, "caption": "On a faster bus the gap shrinks: the experts' overhead shows." },
+      "caption": "Same Spark, same question: the bigger model wins."
+    },
+    {
+      "act": "report", "title": "Mission Report", "cam": "1", "trip": ["you"], "report": true, "weight": 1.3,
+      "state": { "model": "q36", "t": 2.6, "slow": 1 },
+      "text": [
+        "The 35B mixture of experts on five machines.",
+        "Every machine writes it faster than the dense 27B, by less on the fastest buses."
+      ],
+      "metaphor": "Think of it as the same light truck on five different roads.",
+      "chips": [
+        { "k": "writeTps", "m": "spark", "label": "DGX Spark" },
+        { "k": "writeTps", "m": "rtx5090", "label": "RTX 5090" },
+        { "k": "writeTps", "m": "mac", "label": "Mac Studio" }
+      ],
+      "breakIt": { "label": "go back to the dense 27B", "set": { "model": "q27" }, "caption": "Dense on every machine: slower everywhere." },
+      "caption": "Next: I gave my idle GPU 32 jobs."
+    }
+  ]
+}

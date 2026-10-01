@@ -21,6 +21,7 @@
   <p class="sticker">Inside a DGX Spark, the model lives in the memory chips. To write each token, the whole model crosses the memory bus to the GPU. The GPU does its math in a flash, then waits for the next delivery.</p>
   <div class="meta">
     <span class="stamp">Mission 01: Liftoff</span>
+    <button class="linkish" id="tour-btn" type="button">Guided tour</button>
     <button class="linkish" id="open-info" type="button">What's real?</button>
     <button class="linkish" id="open-keys" type="button">Keys</button>
     <button class="linkish only-desk" id="bar-btn" type="button" aria-pressed="false">Controls bar</button>
@@ -117,7 +118,8 @@
     <dt><kbd>H</kbd></dt><dd>Hide the interface for recording</dd>
     <dt><kbd>F</kbd></dt><dd>Fullscreen</dd>
     <dt><kbd>B</kbd></dt><dd>Show the controls bar (<kbd>Tab</kbd> into it works too)</dd>
-    <dt><kbd>Esc</kbd></dt><dd>Leave MIDI learn</dd>
+    <dt><kbd>Esc</kbd></dt><dd>Leave MIDI learn, or the guided tour</dd>
+    <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>In the guided tour: previous and next step (<kbd>Space</kbd> plays and pauses)</dd>
     <dt>Drag, scroll</dt><dd>Orbit and zoom</dd>
   </dl>
   <form method="dialog"><button class="btn" type="submit">Close</button></form>
@@ -132,6 +134,9 @@
 <script type="application/json" id="data-reported-pro6000" src="../../data/reported/pro6000.json"></script>
 <script type="application/json" id="data-reported-rtx5090" src="../../data/reported/rtx5090.json"></script>
 <script type="application/json" id="data-reported-mac" src="../../data/reported/mac.json"></script>
+<script type="application/json" id="tour-life" src="../../tours/life.json"></script>
+<script type="application/json" id="tour-ep1" src="../../tours/ep1.json"></script>
+<script type="application/json" id="tour-ep3" src="../../tours/ep3.json"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/CopyShader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
@@ -149,6 +154,7 @@
 <script src="../../kit/ui.js"></script>
 <script src="../../kit/deck.js"></script>
 <script src="../../kit/midi.js"></script>
+<script src="../../kit/tour.js"></script>
 <script src="../../machines/spark.js"></script>
 <script src="../../machines/rtx5090.js"></script>
 <script src="../../machines/m3ultra.js"></script>

@@ -12,6 +12,8 @@
    stay in step; a MIDI controller can drive the console too (kit/midi.js).
    Live mode (section 6) switches on when live/bridge.mjs serves the page: a chat box that runs a real model
    on the Spark, real memory, power and temperature, and the Benchmark button.
+   The guided tour (section 7, kit/tour.js, labs/tours/*.json): ?tour=life|ep1|ep3, &autoplay=1 to play it through
+   for a recording; the console slides away while it runs and comes back for free play.
    ========================================================= */
 (function (DSP) {
   'use strict';
@@ -117,6 +119,7 @@
       if (box.openIn > 0) { box.openIn -= dt; if (box.openIn <= 0) openCase(true); }
       if (!box.drag && box.k !== box.to) box.k = box.to > box.k ? Math.min(box.to, box.k + dt / OPEN_S) : Math.max(box.to, box.k - dt / (swap ? SWAP_CLOSE_S : CLOSE_S));
       cur.shell.rig.set(box.k);
+      cur.shell.rig.away(E.shotNow() !== '1' && !box.drag ? 1 : 0, dt);     // a close-up looks inside: the hanging lid lifts out of its view
       cur.shell.rig.glow(!!cur.lidHot, dt);
       const lidOpen = box.to >= 1 || box.openIn > 0;
       if (lidOpen !== lidShown) { lidShown = lidOpen; deck.setLid(lidOpen); }
@@ -248,7 +251,9 @@
     function updateSim(dt, time) {
       if (swap) stepSwap(dt);
       stepCase(dt);
+      slideDeck(dt);
       deck.update(dt);
+      if (tourOn) return tourSim(dt, time);
       if (record && !openedForRecord && time > 0.7) { openedForRecord = true; openCase(true); }
       if (live.on) return updateLive(dt, time);
       const p = sim.plan, speed = pick(SPEEDS, sel.speed).k, model = curModel();
@@ -388,7 +393,19 @@
     // controls bar stands in for the console)
     const B3 = (a, b) => new T.Box3(new T.Vector3(...a), new T.Vector3(...b));
     const MACHINE_BOX = B3([-8.8, -0.2, -8.8], [8.8, 10.2, 8.8]), MUG_BOX = B3([10.5, 0, -8.6], [21.4, 10.6, 2.2]);
-    E.onLayout(mode => { deck.root.visible = mode !== 'small' && mode !== 'focus'; });
+    // the console hides on a phone and slides away (down and toward the camera, under the floor) while a tour has the screen
+    const deckHome = deck.root.position.clone(), slide = { k: 0, want: 0, hidden: false };
+    E.onLayout(mode => {
+      slide.hidden = mode === 'small'; slide.want = mode === 'focus' ? 1 : 0;
+      if (slide.hidden || E.reduceMotion) slide.k = slide.want;
+      deck.root.visible = !slide.hidden && slide.k < 1;
+    });
+    function slideDeck(dt) {
+      if (slide.k !== slide.want) slide.k = slide.want > slide.k ? Math.min(1, slide.k + dt / 0.7) : Math.max(0, slide.k - dt / 0.7);
+      const e = slide.k * slide.k * (3 - 2 * slide.k);
+      deck.root.position.set(deckHome.x, deckHome.y - 9 * e, deckHome.z + 14 * e);
+      deck.root.visible = !slide.hidden && slide.k < 1;
+    }
     E.setAvoid(deck.root);
 
     function finishNote() {
@@ -701,6 +718,140 @@
     }
 
     /* =========================================================
+       7. GUIDED TOUR: kit/tour.js runs the story, this is the lab it drives. The tour owns the clock: seek(t) puts the
+          simulation at t seconds since you hit enter (negative while the model loads), so the clock on screen and the
+          machine always agree. Every number it shows comes from calc() and the data files, tagged by where it came from.
+       ========================================================= */
+    let tourOn = false;
+    const TAG = src => src === 'measured' ? 'measured' : src === 'reported' || src === 'config' ? 'reported' : 'estimated';
+    const runsOn = id => ((DSP.model.measuredFor(id) || {}).runs) || [];
+    // a chip's own overrides: m (a machine), model, bits, prompt, crew; at: a machine or a model id from the words
+    const stOf = (st, c) => Object.assign({}, st, c && c.at ? (pick(MODELS, c.at) ? { model: c.at } : { machine: c.at }) : {}, c && c.m ? { machine: c.m } : {}, c && c.model ? { model: c.model } : {}, c && c.bits ? { bits: c.bits } : {}, c && c.prompt ? { prompt: c.prompt } : {}, c && c.crew ? { crew: c.crew } : {});
+    function planOf(st) {
+      const m = pick(MACHINES, st.machine), model = pick(MODELS, st.model), prec = pick(PRECS, st.bits), prompt = pick(PROMPTS, st.prompt);
+      return { m, model, prec, prompt, p: calc(m, model, prec, prompt, st.crew || 1) };
+    }
+    // the run behind a setup's file and time to load: the same machine, model and compression, measured or reported
+    const fileRun = (x, k) => runsOn(x.m.id).find(r => r.model === x.model.id && r.bits === x.prec.id && r[k] != null) || null;
+    // the Spark's measured load rate stands in where nobody measured a load (estimated)
+    function loadOf(x) {
+      const r = fileRun(x, 'loadS'); if (r) return { s: r.loadS, tag: TAG(r.source) };
+      const sp = runsOn('spark').filter(r => r.loadS && r.weightsGB), rate = sp.length ? sp.reduce((a, r) => a + r.weightsGB / r.loadS, 0) / sp.length : 1;
+      return { s: (x.p.weightsGB + x.p.hostTableGB) / rate, tag: 'estimated' };
+    }
+    const NO = { text: '—', unit: '', tag: 'estimated' };
+    const pctS = f => f < 0.01 && f > 0 ? { text: '<1', unit: '%' } : { text: String(Math.round(f * 100)), unit: '%' };
+    const secs = s => s < 60 ? { text: s < 10 ? s.toFixed(1) : s.toFixed(0), unit: 's' } : { text: fmtS(s), unit: '' };
+    function metric(c, st) {
+      const x = planOf(stOf(st, c)), p = x.p, crew = x.p.crew;
+      const run = p.measured, wSrc = TAG(p.source), rSrc = TAG(p.readSource);
+      const speed = (v, unit, tag) => p.fits ? Object.assign({ text: fmtT(v), unit }, { tag }) : { text: 'no fit', unit: '', tag: 'estimated' };
+      const file = fileRun(x, 'weightsGB'), fileTag = file ? TAG(file.source) : 'estimated';
+      const ex = model => calc(x.m, pick(MODELS, model), x.prec, x.prompt, 1);
+      switch (c.k) {
+        case 'weightsGB': return { text: fmtGB(p.weightsGB + p.hostTableGB), unit: 'GB', tag: fileTag };
+        case 'cells': return { text: String(Math.ceil(Math.min(p.usable, p.weightsGB))), unit: 'cells', tag: fileTag };
+        case 'loadS': { if (!p.fits) return NO; const l = loadOf(x); return Object.assign(secs(l.s), { tag: l.tag }); }
+        case 'usableGB': return { text: String(p.usable), unit: 'GB', tag: 'estimated' };
+        case 'bw': return { text: x.m.bw.toLocaleString('en-US'), unit: 'GB/s', tag: TAG(x.m.sources.bw) };
+        case 'totalB': return { text: fmtB(x.model.total), unit: '', tag: TAG(x.model.sources.total) };
+        case 'activeB': return { text: fmtB(x.model.active), unit: '', tag: TAG(x.model.sources.active) };
+        case 'promptTokens': return { text: (run && run.promptTokens || x.prompt.tokens).toLocaleString('en-US'), unit: 'tokens', tag: run && run.promptTokens ? TAG(run.source) : 'estimated' };
+        case 'answerTokens': return { text: String(ANSWER), unit: 'words', tag: run && run.genTokens === ANSWER ? TAG(run.source) : 'estimated' };
+        case 'readTps': return speed(p.readTps, 'tokens/s', rSrc);
+        case 'readS': return p.fits ? Object.assign(secs(p.readS), { tag: rSrc }) : NO;
+        case 'ttftS': return p.fits ? Object.assign(secs(run && run.ttftS != null && crew === 1 ? run.ttftS : p.readS), { tag: run && run.ttftS != null && crew === 1 ? TAG(run.source) : rSrc }) : NO;
+        case 'gpuRead': return { text: '100', unit: '%', tag: 'estimated' };
+        case 'powerReadW': case 'powerWriteW': { const r = fileRun(x, c.k); return r && crew === 1 ? { text: String(Math.round(r[c.k])), unit: 'W', tag: TAG(r.source) } : NO; }
+        case 'gpuClock': { const r = fileRun(x, 'gpuClockMaxMHz'); return r ? { text: r.gpuClockMaxMHz.toLocaleString('en-US'), unit: 'MHz', tag: TAG(r.source) } : NO; }
+        case 'writeTps': return speed(p.writeTps, 'tokens/s', crew > 1 ? 'estimated' : wSrc);
+        case 'totalTps': return speed(p.totalTps, 'tokens/s', crew > 1 ? 'estimated' : wSrc);
+        case 'msPerToken': return p.fits ? { text: (1000 / p.writeTps).toFixed(0), unit: 'ms', tag: crew > 1 ? 'estimated' : wSrc } : NO;
+        case 'perTokenGB': return x.model.moe ? { text: fmtGB(x.model.active * x.prec.bpp), unit: 'GB', tag: 'estimated' } : { text: fmtGB(p.weightsGB - p.tableGB), unit: 'GB', tag: fileTag };
+        case 'busMs': { const gb = x.model.moe ? x.model.active * x.prec.bpp : p.weightsGB - p.tableGB; return { text: (gb / x.m.bw * 1000).toFixed(0), unit: 'ms', tag: 'estimated' }; }
+        case 'busWrite': return Object.assign(pctS(p.busWrite), { tag: 'estimated' });
+        case 'busyWrite': return Object.assign(pctS(p.busyWrite), { tag: 'estimated' });
+        case 'idleWrite': return Object.assign(pctS(1 - p.busyWrite), { tag: 'estimated' });
+        case 'kvKB': return { text: String(Math.round(x.model.kvMB * 1024)), unit: 'KB', tag: TAG(x.model.sources.kvMB) };
+        case 'kvGB': return { text: fmtGB(p.kvTotal), unit: 'GB', tag: 'estimated' };
+        case 'writeS': return p.fits ? Object.assign(secs(p.writeS), { tag: crew > 1 ? 'estimated' : wSrc }) : NO;
+        case 'doneS': return p.fits ? Object.assign(secs(p.totalS), { tag: crew > 1 || wSrc !== rSrc ? 'estimated' : wSrc }) : NO;
+        case 'moeX': { const a = ex(MOE_PAIR[1]), b = ex(MOE_PAIR[0]); if (!a.fits || !b.fits) return NO; const both = a.source === b.source && a.source !== 'estimated'; return { text: (a.writeTps / b.writeTps).toFixed(1), unit: '×', tag: both ? TAG(a.source) : 'estimated' }; }
+      }
+      return NO;
+    }
+    const MOE_PAIR = ['q27', 'q36'];
+    function tourWords(k, st) {
+      const w = WORDS[st.machine];
+      if (k === 'the') return w.the; if (k === 'The') return w.the[0].toUpperCase() + w.the.slice(1);
+      if (k === 'model') return pick(MODELS, st.model).name;
+      return null;
+    }
+    function realLine(st) {
+      const x = planOf(st), p = x.p, r = p.measured && p.source !== 'estimated' ? p.measured : p.scaledFrom || p.readFrom, w = WORDS[x.m.id].short;
+      if (!r) return 'Real data: none behind this one. Every number here is the lab\'s formula (estimated).';
+      const what = r.name + ' (' + r.quant + ') on the ' + w + ', ' + (r.engine || r.server || 'llama.cpp') + ', a ' + (r.promptTokens || r.prompt).toLocaleString('en-US') + '-token prompt';
+      const scaled = r !== p.measured || p.source === 'estimated';
+      if (r.source === 'measured') return 'Real data: ' + (scaled ? 'scaled from ' : '') + what + ', ' + (r.genTokens || ANSWER) + ' tokens out, the middle of ' + (r.reps || 3) + ' runs, measured ' + r.date + '.';
+      return 'Real data: ' + (scaled ? 'scaled from ' : '') + what + ', reported by ' + r.by + ' (' + r.date + '). Links in data/reported/' + x.m.id + '.json.';
+    }
+    function report(st) {
+      return MACHINES.map(m => {
+        const x = planOf(Object.assign({}, st, { machine: m.id })), p = x.p, tag = p.crew > 1 ? 'estimated' : TAG(p.source);
+        return { name: WORDS[m.id].short, text: p.fits ? fmtT(p.crew > 1 ? p.totalTps : p.writeTps) + ' tokens/s · ' + fmtS(p.totalS) : 'doesn\'t fit: needs ' + fmtGB(p.needGB) + ' GB', tag: p.fits ? tag : '', done: p.fits };
+      });
+    }
+    // where the simulation is at t seconds since enter
+    function tourSeek(t, jump) {
+      const p = sim.plan, model = curModel();
+      if (!p.fits) { sim.phase = 'ready'; sim.load = 1; sim.t = 0; sim.tokens = 0; }
+      else if (t < 0) { sim.phase = 'loading'; sim.load = Math.max(0, Math.min(1, 1 + t / tourTimeline().loadS)); sim.t = 0; sim.tokens = 0; }
+      else {
+        sim.load = 1; sim.t = t;
+        if (t < p.readS) { sim.phase = 'reading'; sim.tokens = 0; }
+        else if (t < p.totalS) { sim.phase = 'writing'; sim.tokens = Math.min(ANSWER, (t - p.readS) * p.writeTps); }
+        else { sim.phase = 'done'; sim.tokens = ANSWER; }
+      }
+      const whole = Math.floor(sim.tokens);
+      if (jump || whole < sim.lastTok) { sim.lastTok = whole; cur.outP.clear(); }
+      else if (whole > sim.lastTok) { tokenFx(Math.min(3, whole - sim.lastTok), model); sim.lastTok = whole; }
+    }
+    function tourTimeline() {
+      const p = sim.plan, x = { m: CUR, model: curModel(), prec: pick(PRECS, sel.prec), p };
+      return { loadS: loadOf(x).s, readS: p.readS, totalS: p.totalS, fits: p.fits };
+    }
+    function tourApply(st) {
+      if (live.on && !liveRunning()) leaveLive();
+      let changed = false;
+      [['model', st.model], ['prec', st.bits], ['prompt', st.prompt], ['crew', st.crew || 1]].forEach(([k, v]) => { if (sel[k] !== v) { sel[k] = v; changed = true; } });
+      if (st.machine !== sel.machine) switchMachine(st.machine);
+      else if (changed) applySelection(true);
+      if (box.to < 1) openCase(true);
+    }
+    function tourSim(dt, time) {
+      DSP.tour.tick(dt);
+      const p = sim.plan;
+      let gpuT = 0.02, busT = 0;
+      if (sim.phase === 'reading') { gpuT = 1; busT = p.busRead; }
+      else if (sim.phase === 'writing') { gpuT = p.busyWrite; busT = p.busWrite; }
+      settle(gpuT, busT, dt, time, curModel());
+    }
+    const tourLab = {
+      whatIf: { machines: MACHINES.map(m => ({ id: m.id, short: { spark: 'Spark', rtx5090: '5090', mac: 'Mac', strix: 'Strix', pro6000: 'Pro 6000' }[m.id] || WORDS[m.id].short })), dense: MOE_PAIR[0], moe: MOE_PAIR[1], isMoe: id => !!(pick(MODELS, id) || {}).moe },
+      apply: tourApply, seek: tourSeek, timeline: tourTimeline, metric, words: tourWords, realLine, report,
+      begin(areaFn) { tourOn = true; disarm(); box.pending = false; E.setArea(areaFn); },
+      end() { tourOn = false; E.setArea(null); applySelection(true); E.goShot('1'); },
+      layout() { E.resize(); },
+      shot(k) { E.goShot(k); }
+    };
+    const TOURS = { life: 'tour-life', ep1: 'tour-ep1', ep3: 'tour-ep3' };
+    function startTour(id, autoplay) {
+      return DSP.model.loadData([TOURS[id] || TOURS.life]).then(([data]) => DSP.tour.start(data, tourLab, { autoplay }));
+    }
+    const tourBtn = document.getElementById('tour-btn');
+    if (tourBtn) tourBtn.addEventListener('click', () => startTour('life', false));
+
+    /* =========================================================
        5. GO
        ========================================================= */
     if (record) document.body.classList.add('hide-ui');
@@ -716,6 +867,8 @@
       }, () => {});
     }
     E.run(updateSim, updateUI);
-    window.__lab = { launch, sim, sel, applySelection, switchMachine, busy: () => !!swap, goShot: E.goShot, live, startLive, deck, box, openCase, cur: () => cur };
+    const tourQ = q.get('tour');
+    if (tourQ && DSP.tour) startTour(TOURS[tourQ] ? tourQ : 'life', q.get('autoplay') === '1').catch(e => console.error('tour', e));
+    window.__lab = { launch, sim, sel, applySelection, switchMachine, busy: () => !!swap, goShot: E.goShot, live, startLive, deck, box, openCase, cur: () => cur, startTour, tour: DSP.tour, metric };
   }
 })(window.DSP = window.DSP || {});

@@ -45,6 +45,12 @@ Everything below was learned the hard way. Read it before touching the code.
   A 9:16 recording stacks two views: the machine fills the width at the top, the console (its own camera) the bottom band.
 - **Keys:** Space launch (opens the machine first), O open or close, 1–4 camera shots, M next machine, C orbit, H hide UI,
   B controls bar, F fullscreen.
+- **Guided tour (Session G, kit/tour.js, labs/tours/):** a story in acts, slowed down, modelled on the structure of
+  sael.net/internet (not its look): a step card, a trip map with a live clock, a big caption, a scrubber with the acts,
+  1/2x 1x 2x, the arrow keys, a "What if..." panel, a "break it" button per step and a real-data line. The main tour,
+  "The life of one answer", has 12 steps in Load, Read, Write, Answer; episodes 1 and 3 have their own. `?tour=life&autoplay=1`
+  plays it in about 30 s with the interface on, so a plain screen recording is a finished video; a tall window gets the
+  9:16 layout. The console slides away during a tour and comes back after.
 
 ## Stack and why
 

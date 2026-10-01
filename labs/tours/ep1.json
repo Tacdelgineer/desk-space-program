@@ -1,0 +1,81 @@
+{
+  "about": "Episode 1 of EPISODES.md as a tour: My AI box waits 99% of the time. Qwen3.8 27B on the DGX Spark, the question prompt, the close-up on the GPU. Every number comes from labs/data through the mission's metrics.",
+  "id": "ep1",
+  "title": "My AI box waits {idleWrite} of the time",
+  "autoplayS": 16,
+  "base": { "machine": "spark", "model": "q27", "bits": "4", "prompt": "q", "crew": 1 },
+  "acts": [
+    { "id": "read", "title": "Read" },
+    { "id": "write", "title": "Write" },
+    { "id": "report", "title": "Report" }
+  ],
+  "steps": [
+    {
+      "act": "read", "title": "Full power, for a blink", "cam": "3", "trip": ["gpu"],
+      "state": { "t": 0.25, "slow": 100 },
+      "text": [
+        "{model} is loaded into {the}'s memory: {weightsGB}.",
+        "You hit enter, and the GPU reads your whole question at once, every block lit.",
+        "It is done in {readS}."
+      ],
+      "metaphor": "Think of it as a sprinter off the blocks.",
+      "chips": [
+        { "k": "gpuRead", "label": "GPU math used" },
+        { "k": "readTps", "label": "reading" },
+        { "k": "readS", "label": "to read it" }
+      ],
+      "breakIt": { "label": "paste a 30-page document", "set": { "prompt": "doc" }, "caption": "A long document keeps the GPU sprinting for seconds." },
+      "caption": "Reading: every GPU block lights up, for half a blink."
+    },
+    {
+      "act": "write", "title": "Then it waits", "cam": "3", "trip": ["memory", "bus", "gpu"],
+      "state": { "t": 4.2, "slow": 20 },
+      "text": [
+        "Writing needs the whole model for every word, and the model lives in memory.",
+        "The GPU does each word's math in a flash, then waits for the next delivery over the bus.",
+        "Its math is busy {busyWrite} of the time."
+      ],
+      "metaphor": "Think of it as a sports car stuck behind a slow truck.",
+      "chips": [
+        { "k": "busyWrite", "label": "GPU math used" },
+        { "k": "writeTps", "label": "writing" },
+        { "k": "powerWriteW", "label": "power drawn" }
+      ],
+      "breakIt": { "label": "make it 16-bit", "set": { "bits": "16" }, "caption": "More bytes per word, and the GPU waits even longer." },
+      "caption": "My AI box waits {idleWrite} of the time."
+    },
+    {
+      "act": "write", "title": "The bus is the limit", "cam": "2", "trip": ["bus"],
+      "state": { "t": 6.0, "slow": 20 },
+      "text": [
+        "The memory bus runs flat out: {busWrite} busy while the GPU idles.",
+        "{The} moves {bw}, and each word needs {perTokenGB} of it.",
+        "So the speed is set by the bus, not by the chip."
+      ],
+      "metaphor": "Think of it as one narrow fuel line feeding a huge engine.",
+      "chips": [
+        { "k": "busWrite", "label": "bus busy" },
+        { "k": "bw", "label": "memory bus" },
+        { "k": "perTokenGB", "label": "read per word" }
+      ],
+      "breakIt": { "label": "use an RTX 5090", "set": { "machine": "rtx5090" }, "caption": "A faster bus: same model, words come much faster." },
+      "caption": "The memory bus runs flat out. It sets the speed."
+    },
+    {
+      "act": "report", "title": "Mission Report", "cam": "1", "trip": ["you"], "report": true, "weight": 1.3,
+      "state": { "t": 12.4, "slow": 1 },
+      "text": [
+        "The same question on five machines.",
+        "The ones with the fastest memory bus write fastest; the GPU waits on every one of them."
+      ],
+      "metaphor": "Think of it as the same engine on five different fuel lines.",
+      "chips": [
+        { "k": "writeTps", "m": "spark", "label": "DGX Spark" },
+        { "k": "writeTps", "m": "rtx5090", "label": "RTX 5090" },
+        { "k": "writeTps", "m": "mac", "label": "Mac Studio" }
+      ],
+      "breakIt": { "label": "try the bigger Flash-Next", "set": { "model": "flash" }, "caption": "A bigger model: the fastest gaming card cannot load it." },
+      "caption": "Next: the fastest gaming GPU tries a bigger model."
+    }
+  ]
+}

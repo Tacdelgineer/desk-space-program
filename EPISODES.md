@@ -32,7 +32,9 @@ Source of each number: file + field, measured or estimated
 Shot list: 1) ... 2) ... 3) ...
 ```
 
-Live lab: https://tacdelgineer.github.io/desk-space-program/01-liftoff/ . Preset parameters: `machine` (spark, rtx5090,
+Live lab: https://tacdelgineer.github.io/desk-space-program/01-liftoff/ . The main guided tour, "The life of one answer"
+(about 30 s, interface on, a plain screen recording is the video): https://tacdelgineer.github.io/desk-space-program/01-liftoff/?tour=life&autoplay=1
+in a 16:9 window, the same link in a tall window (1080 x 1920) for the 9:16 layout. Preset parameters: `machine` (spark, rtx5090,
 mac, strix, pro6000), `model` (g4, q36, q27, flash, max, or a size in billions for a dense model), `bits` (4, 8, 16), `prompt` (q, doc, code),
 `crew` (1–64), `shot` (1–4), `speed` (1, 5), `record=1` (interface hidden, the console stays in the picture; the machine
 starts closed, opens at 0.7 s, and launches once the model has loaded and the lid is off; in a tall 9:16 window the machine
@@ -81,6 +83,7 @@ file). Prompt length: `labs/data/models.json` `prompts[].tokens` (`"chosen"`). A
 reading the prompt plus writing the answer.
 
 ### Episode 1
+Tour (record it as it plays, about 16 s): https://tacdelgineer.github.io/desk-space-program/01-liftoff/?tour=ep1&autoplay=1
 Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q27&bits=4&prompt=q&crew=1&shot=3&record=1
 Guess card options: While it writes, the GPU's math is busy... A) 99% of the time / B) half the time / C) 1% of the time
 Mission Report: M01 LIFTOFF   QWEN3.8 27B, 4-BIT | FITS? YES / YES / YES | TOKENS/S 12.8 (meas.) / 79 / 31 (rep.) | DONE IN 12 s (meas.) / 2.0 s / 5.8 s (rep.) | The GPU does 1% math, then waits for memory | NEXT: the fastest gaming GPU tries a bigger one
@@ -98,6 +101,7 @@ Source of each number: the lists above. 72 GB = the weights without the 29 GB lo
 Shot list: 1) key 1, the 5090 loading over the PCIe slot. 2) key 2: the 16 chips fill up, the last ones turn magenta and spill. 3) key 4: the PCIe slot, where there's no more room to send. 4) the Spark (its machine button, or M four times round: Mac, Strix Halo, Pro 6000, Spark): the same model fits, with 9 GB to spare. 5) the fix link: Qwen3.6 35B MoE fits the 5090 (271 tokens/s, reported).
 
 ### Episode 3
+Tour (record it as it plays, about 16 s): https://tacdelgineer.github.io/desk-space-program/01-liftoff/?tour=ep3&autoplay=1
 Preset link: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q27&bits=4&prompt=q&crew=1&shot=2&record=1
   then: https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q36&bits=4&prompt=q&crew=1&shot=2&record=1
 Guess card options: A 27B model and a 35B model. Which writes faster? A) the 27B / B) the 35B / C) the same

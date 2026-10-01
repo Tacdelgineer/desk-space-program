@@ -1,0 +1,218 @@
+{
+  "about": "The main tour of Mission 01: one question to Qwen3.8 27B on the DGX Spark, from the file on the SSD to the last word, slowed down. Read by kit/tour.js. Every number is a metric the mission computes from labs/data ({k} in the words, k in a chip), never typed here. state.t is seconds since you hit enter (negative while the model loads), state.slow how many times slower than real time the clock runs.",
+  "id": "life",
+  "title": "The life of one answer",
+  "base": { "machine": "spark", "model": "q27", "bits": "4", "prompt": "q", "crew": 1 },
+  "acts": [
+    { "id": "load", "title": "Load" },
+    { "id": "read", "title": "Read" },
+    { "id": "write", "title": "Write" },
+    { "id": "answer", "title": "Answer" }
+  ],
+  "steps": [
+    {
+      "act": "load", "title": "The file wakes up", "cam": "4", "trip": ["ssd", "memory"],
+      "state": { "t": -15, "slow": 10 },
+      "text": [
+        "Before you type a word, {model} is a file on the SSD: {weightsGB} of numbers.",
+        "Loading copies every one of them into the memory chips, where the GPU can reach them.",
+        "On {the} that takes {loadS}."
+      ],
+      "metaphor": "Think of it as unpacking a whole library onto the shelves before the first reader walks in.",
+      "chips": [
+        { "k": "weightsGB", "label": "the file" },
+        { "k": "loadS", "label": "to load it" },
+        { "k": "usableGB", "label": "room in memory" }
+      ],
+      "breakIt": { "label": "load Qwen3.8-Max", "set": { "model": "max" }, "caption": "The file is bigger than the memory. Nothing runs." },
+      "caption": "The model starts as a file on the SSD."
+    },
+    {
+      "act": "load", "title": "Every cell is a gigabyte", "cam": "2", "trip": ["memory"],
+      "state": { "t": -0.6, "slow": 10 },
+      "text": [
+        "Each glowing square on the memory chips stands for one gigabyte.",
+        "{model} fills {cells} of the {usableGB} this machine can give it.",
+        "The model stays there the whole time. Nothing has been computed yet."
+      ],
+      "metaphor": "Think of it as a warehouse where every shelf holds exactly one gigabyte.",
+      "chips": [
+        { "k": "cells", "label": "cells lit" },
+        { "k": "totalB", "label": "parameters" },
+        { "k": "usableGB", "label": "room" }
+      ],
+      "breakIt": { "label": "make it 16-bit", "set": { "bits": "16" }, "caption": "Full size, the same model fills over three times the cells." },
+      "caption": "Each lit square is one gigabyte of the model."
+    },
+    {
+      "act": "read", "title": "Words become tokens", "cam": "1", "trip": ["you", "port", "memory"],
+      "state": { "t": 0.02, "slow": 100 },
+      "text": [
+        "You ask: why does my GPU feel slow?",
+        "With the chat template and its instructions that becomes {promptTokens}: pieces of words, each one a number.",
+        "They come in through the port and wait in memory for the GPU."
+      ],
+      "metaphor": "Think of it as a typesetter breaking your sentence into pieces of type.",
+      "chips": [
+        { "k": "promptTokens", "label": "your question" },
+        { "k": "ttftS", "label": "to the first word" },
+        { "k": "readTps", "label": "reading speed" }
+      ],
+      "breakIt": { "label": "paste a 30-page document", "set": { "prompt": "doc" }, "caption": "A long document turns the blink of reading into seconds." },
+      "caption": "Your question becomes tokens: small pieces of words."
+    },
+    {
+      "act": "read", "title": "The engine at full power", "cam": "3", "trip": ["gpu"],
+      "state": { "t": 0.25, "slow": 100 },
+      "text": [
+        "Reading is math, and the GPU does it for all of your tokens at once.",
+        "Every block on the chip lights up. This is the only time it works flat out.",
+        "{The} reads at {readTps}."
+      ],
+      "metaphor": "Think of it as a print shop running every press at the same time.",
+      "chips": [
+        { "k": "gpuRead", "label": "GPU math used" },
+        { "k": "readTps", "label": "reading" },
+        { "k": "powerReadW", "label": "power drawn" }
+      ],
+      "breakIt": { "label": "paste a 30-page document", "set": { "prompt": "doc" }, "caption": "Thousands of tokens keep every block busy for seconds." },
+      "caption": "Reading your question: every GPU block works at once."
+    },
+    {
+      "act": "write", "title": "One word, the whole model", "cam": "1", "trip": ["memory", "bus", "gpu"],
+      "state": { "t": 0.75, "slow": 100 },
+      "text": [
+        "Writing is different. To pick each next word, the GPU needs every weight in the model.",
+        "So for every single word, all {perTokenGB} crosses from the memory to the chip.",
+        "One word takes {msPerToken}."
+      ],
+      "metaphor": "Think of it as rereading the whole encyclopedia to write one word.",
+      "chips": [
+        { "k": "perTokenGB", "label": "read per word" },
+        { "k": "msPerToken", "label": "per word" },
+        { "k": "writeTps", "label": "writing speed" }
+      ],
+      "breakIt": { "label": "make it 16-bit", "set": { "bits": "16" }, "caption": "Full size: more bytes to move for every single word." },
+      "caption": "Every word costs one trip through the whole model."
+    },
+    {
+      "act": "write", "title": "The jammed fuel line", "cam": "2", "trip": ["bus"],
+      "state": { "t": 2.0, "slow": 20 },
+      "text": [
+        "The memory bus is the road between the memory chips and the GPU.",
+        "On {the} it carries {bw}, and while the model writes it is {busWrite} busy.",
+        "That road, not the GPU, sets the writing speed."
+      ],
+      "metaphor": "Think of it as a rocket engine fed through one narrow fuel line.",
+      "chips": [
+        { "k": "bw", "label": "memory bus" },
+        { "k": "busWrite", "label": "bus busy" },
+        { "k": "busMs", "label": "one trip" }
+      ],
+      "breakIt": { "label": "use an RTX 5090", "set": { "machine": "rtx5090" }, "caption": "A wider, faster bus delivers the model sooner: words come faster." },
+      "caption": "The memory bus runs flat out. It sets the speed."
+    },
+    {
+      "act": "write", "title": "The engine waits at {busyWrite}", "cam": "3", "trip": ["gpu"],
+      "state": { "t": 4.2, "slow": 20 },
+      "text": [
+        "Between deliveries the GPU has almost nothing to do.",
+        "Its math takes a sliver of every step: {busyWrite} of what it could do.",
+        "It draws {powerWriteW} while it writes, about what it drew while reading."
+      ],
+      "metaphor": "Think of it as a sports car stuck behind a slow truck.",
+      "chips": [
+        { "k": "busyWrite", "label": "GPU math used" },
+        { "k": "powerWriteW", "label": "power drawn" },
+        { "k": "gpuClock", "label": "GPU clock" }
+      ],
+      "breakIt": { "label": "make it 16-bit", "set": { "bits": "16" }, "caption": "More bytes per word, and the GPU waits even longer." },
+      "caption": "The GPU finishes its math in a flash, then waits."
+    },
+    {
+      "act": "write", "title": "The notes pile up", "cam": "2", "trip": ["memory"],
+      "state": { "t": 8.0, "slow": 20 },
+      "text": [
+        "As it writes, the model keeps notes on every token so far: the prompt memory.",
+        "Each new token adds {kvKB}, next to the weights.",
+        "For this question that is {kvGB}. A long prompt makes the pile much bigger."
+      ],
+      "metaphor": "Think of it as sticky notes the model leaves for itself, one per word.",
+      "chips": [
+        { "k": "kvKB", "label": "per token" },
+        { "k": "kvGB", "label": "for this question" },
+        { "k": "answerTokens", "label": "words out" }
+      ],
+      "breakIt": { "label": "feed it a whole codebase", "set": { "prompt": "code" }, "caption": "A whole codebase: the notes now fill gigabytes." },
+      "caption": "Each word leaves a note behind. The notes pile up."
+    },
+    {
+      "act": "write", "title": "What if only a slice is read?", "cam": "2", "trip": ["memory", "bus", "gpu"],
+      "state": { "model": "q36", "t": 1.0, "slow": 20 },
+      "text": [
+        "{model} is a mixture of experts: it keeps {totalB} parameters but reads only {activeB} for each word.",
+        "A few cells flash per word instead of all of them.",
+        "On {the} it writes {writeTps}: {moeX} as fast as the dense 27B."
+      ],
+      "metaphor": "Think of it as a library where each question needs only one aisle.",
+      "chips": [
+        { "k": "activeB", "label": "read per word" },
+        { "k": "writeTps", "label": "writing speed" },
+        { "k": "moeX", "label": "vs the dense 27B" }
+      ],
+      "breakIt": { "label": "go back to the dense 27B", "set": { "model": "q27" }, "caption": "Dense again: every word reads every cell." },
+      "caption": "A mixture of experts reads a slice, so words come faster."
+    },
+    {
+      "act": "write", "title": "32 riders, one trip", "cam": "3", "trip": ["memory", "bus", "gpu"],
+      "state": { "crew": 32, "t": 24, "slow": 20 },
+      "text": [
+        "Serve 32 questions at once, and every trip over the bus feeds all of them.",
+        "The GPU finally gets some work: {busyWrite} of its math.",
+        "Together they get {totalTps}, and each one still gets {writeTps}."
+      ],
+      "metaphor": "Think of it as a bus: the trip costs the same with one rider or thirty-two.",
+      "chips": [
+        { "k": "totalTps", "label": "all 32 together" },
+        { "k": "writeTps", "label": "each one" },
+        { "k": "busyWrite", "label": "GPU math used" }
+      ],
+      "breakIt": { "label": "one rider", "set": { "crew": 1 }, "caption": "One rider: the same trip now carries a single word." },
+      "caption": "Thirty-two answers share every trip across the bus."
+    },
+    {
+      "act": "answer", "title": "The answer leaves the port", "cam": "1", "trip": ["port", "you"],
+      "state": { "t": 11.3, "slow": 20 },
+      "text": [
+        "Each finished word goes out through the port as text.",
+        "The {answerTokens} of the answer take {writeS} to write.",
+        "From the moment you hit enter to the last word: {doneS}."
+      ],
+      "metaphor": "Think of it as a ticker tape feeding out one word at a time.",
+      "chips": [
+        { "k": "answerTokens", "label": "the answer" },
+        { "k": "writeS", "label": "writing" },
+        { "k": "doneS", "label": "enter to done" }
+      ],
+      "breakIt": { "label": "paste a 30-page document", "set": { "prompt": "doc" }, "caption": "Reading a long document first makes you wait longer." },
+      "caption": "Word by word, the answer streams out to you."
+    },
+    {
+      "act": "answer", "title": "Mission Report", "cam": "1", "trip": ["you"], "report": true, "weight": 1.5,
+      "state": { "t": 12.4, "slow": 1 },
+      "text": [
+        "The same question and the same model on five machines.",
+        "Writing speed follows the memory bus. Reading follows the math.",
+        "Measured on the Spark, reported by others where they published runs, estimated where nobody has."
+      ],
+      "metaphor": "Think of it as five rockets with the same fuel and different fuel lines.",
+      "chips": [
+        { "k": "writeTps", "m": "spark", "label": "DGX Spark" },
+        { "k": "writeTps", "m": "rtx5090", "label": "RTX 5090" },
+        { "k": "writeTps", "m": "mac", "label": "Mac Studio" }
+      ],
+      "breakIt": { "label": "ask Qwen3.8-Flash-Next", "set": { "model": "flash" }, "caption": "A much bigger model: the fastest card cannot even load it." },
+      "caption": "Same question, five machines: the fastest memory bus wins."
+    }
+  ]
+}
