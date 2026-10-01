@@ -91,14 +91,14 @@
     <li>Amber cells are a lookup table: Flash-Next's n-gram table (51B parameters) and Gemma's per-layer embeddings. They sit in memory, but each token reads only a few rows, so they barely flicker. On the Spark the table stays in CPU memory, mapped from the file.</li>
     <li>Qwen3.8-Max (2.4 trillion parameters, 93B read per token) is an estimate only. Nothing here can hold it.</li>
     <li>Model sizes between the presets are dense models whose prompt memory is scaled from an older 8B model.</li>
-    <li>Estimated speeds come from simple rules. Writing speed is bandwidth divided by the bytes read per token. Reading speed is compute divided by model size, and the compute figures are rough placeholders.</li>
+    <li>Estimated speeds come from simple rules. Writing speed is bandwidth divided by the bytes read per token; a mixture-of-experts model gets 0.46 of the bandwidth plus 1.7 ms a step for routing its experts, a rule fitted to the measured Spark and the reported RTX 5090 running the same Qwen3.6 file. Reading speed is compute divided by model size, and the compute figures are rough placeholders.</li>
     <li id="real-measured">Measured speeds replace the estimates where they exist: the DGX Spark, 4-bit, the question and document prompts, one request.</li>
     <li id="real-live" hidden>Live mode (this page served by the bridge on the Spark): every number tagged measured is real. The wait before the first token is the reading, each token that arrives lights one pulse and types one piece of the answer, tokens per second is counted from the tokens as they arrive (the final number is llama-server's own), and the memory cells show the memory actually in use (1 cell = 1 GiB; the grey cells are other programs, the dim blue ones the part Linux never sees). GPU math used can't be measured, so live mode shows the GPU's power draw from nvidia-smi instead, and its temperature. The GPU blocks still light up by the estimate; the bus shows its published width and speed. This page draws on the GPU too: open on the Spark's own screen at 1080p, it slowed Gemma 4 E4B from 61 to 44 tokens per second (measured with and without it). The benchmark stops drawing the machine while it runs; open the lab from another computer for the fastest chat.</li>
     <li>The system keeps about 8 GB for itself, shown as the dim cells.</li>
     <li>GPU math used is the share of the GPU's math capacity in use. nvidia-smi shows a much higher busy figure while writing, because it counts any moment a program is running on the GPU, even one that mostly waits for memory.</li>
     <li>Not modeled yet: heat, and the extra work of attention on very long prompts.</li>
   </ul>
-  <p id="real-foot">In the real series the Spark's numbers are measured on the machine. The Strix Halo's, and one of the RTX Pro 6000's, come from other people's published runs, tagged reported. Other numbers stay marked as estimated until they're measured.</p>
+  <p id="real-foot">In the real series the Spark's numbers are measured on the machine. Most of the RTX 5090's, the Mac Studio's and the Strix Halo's, and one of the RTX Pro 6000's, come from other people's published runs, tagged reported. Other numbers stay marked as estimated until they're measured.</p>
   <form method="dialog"><button class="btn" type="submit">Close</button></form>
 </dialog>
 
@@ -130,6 +130,8 @@
 <script type="application/json" id="data-measured" src="../../data/measured/spark.json"></script>
 <script type="application/json" id="data-reported-strix" src="../../data/reported/strix.json"></script>
 <script type="application/json" id="data-reported-pro6000" src="../../data/reported/pro6000.json"></script>
+<script type="application/json" id="data-reported-rtx5090" src="../../data/reported/rtx5090.json"></script>
+<script type="application/json" id="data-reported-mac" src="../../data/reported/mac.json"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/CopyShader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/shaders/LuminosityHighPassShader.js"></script>

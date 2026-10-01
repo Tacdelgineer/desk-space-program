@@ -102,7 +102,9 @@ kvGB       = (kvMBperToken * (promptTokens + answerTokens) + stateMB) / 1024
              kvMBperToken and stateMB come from each model's arch (kit/model.js archModel): only layers with a
              growing cache count per token; sliding windows and linear-attention state are a fixed stateMB
 fits       = weightsGB + kvGB <= memGB - reserveGB
-writeTps   = eff * bandwidthGBs / (activeParams * bytesPerParam + avgKvGB)   eff 0.7 dense, 0.5 MoE
+writeTps   = 0.7 * bandwidthGBs / (activeParams * bytesPerParam + avgKvGB)             dense
+           = 1 / ((activeParams * bytesPerParam + avgKvGB) / (0.46 * bandwidthGBs) + 1.7 ms)   MoE (Session G: fitted to
+             the Spark's measured and the 5090's reported runs of the same Qwen3.6 file; the old 0.5 put the 5090 at 513, it writes 271)
              (a lookup table takes memory but isn't read per token; Flash-Next attends to at most 2,048 tokens)
 readTps    = 0.5 * TFLOPS * 1e12 / (2 * activeParams * 1e9)
 busyWrite  = (2 * activeParams * 1e9 / (0.5 * TFLOPS * 1e12)) * writeTps

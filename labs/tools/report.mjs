@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const labs = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ctx = { window: {} }; vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(labs, 'kit', 'model.js'), 'utf8'), ctx);
-const { calc, pick, plain, archModel, setRuns, sizedModel, fmtS, fmtT, fmtGB, ANSWER } = ctx.window.DSP.model;
+const { calc, pick, plain, archModel, setRuns, setPrecisions, sizedModel, fmtS, fmtT, fmtGB, ANSWER } = ctx.window.DSP.model;
 const data = f => JSON.parse(fs.readFileSync(path.join(labs, 'data', f), 'utf8'));
 const mf = data('machines.json'), df = data('models.json');
 const runFiles = ['measured', 'reported'].flatMap(dir => fs.readdirSync(path.join(labs, 'data', dir)).filter(f => f.endsWith('.json')).map(f => path.join(dir, f)));
@@ -20,6 +20,7 @@ setRuns(...runFiles.map(data));
 
 const q = new URLSearchParams(process.argv[2] || '');
 const models = df.models.map(archModel), precs = df.precisions.map(plain), prompts = df.prompts.map(plain);
+setPrecisions(precs);
 const handle = plain(df.sizeHandle);
 const model = pick(models, q.get('model') || 'q27') || sizedModel(+q.get('model'), handle);
 const prec = pick(precs, q.get('bits') || '4'), prompt = pick(prompts, q.get('prompt') || 'q'), crew = +(q.get('crew') || 1);
@@ -27,9 +28,10 @@ const order = ['spark', 'rtx5090', 'mac', 'strix', 'pro6000'];
 const machines = order.map(id => plain(mf.machines.find(m => m.id === id)));
 
 const short = { measured: 'meas.', reported: 'rep.', estimated: 'est.' };
+// writing and reading each: from a run (meas. / rep.), scaled from a run on the same machine (est. from ...), or the formula (est.)
+const tag = (src, from) => src !== 'estimated' ? short[src] : from ? `est. from ${short[from.source]}` : 'est.';
 const tags = p => {
-  if (p.scaledFrom) return { tps: ` (est. from ${short[p.scaledFrom.source]})`, done: ` (est. from ${short[p.scaledFrom.source]})` };
-  const w = short[p.source], r = short[p.readSource];
+  const w = tag(p.source, p.scaledFrom), r = tag(p.readSource, p.readFrom);
   return { tps: ` (${w})`, done: w === r ? ` (${w})` : ` (${w} writing, ${r} reading)` };
 };
 console.log(`${model.name}, ${prec.short}, ${prompt.tokens} prompt tokens, crew ${crew}, ${ANSWER}-token answer`);
@@ -47,10 +49,13 @@ machines.forEach(m => {
 });
 console.log(`  data/models.json ${model.id}: ${model.sources ? src(model, ['total', 'active', 'kvMB']) + ` (kvMB ${model.kvMB.toFixed(4)}/token, stateMB ${model.stateMB.toFixed(0)}/request)` : 'sized from sizeHandle (estimated)'}; ${prec.id}-bit bpp=${prec.sources.bpp}; prompt ${prompt.id} tokens=${prompt.sources.tokens}; answer length: kit/model.js ANSWER`);
 machines.forEach(m => {
-  const p = calc(m, model, prec, prompt, crew), r = p.measured || p.scaledFrom;
-  if (!r) return;
+  const p = calc(m, model, prec, prompt, crew);
+  const used = [...new Set([p.measured, p.scaledFrom, p.readFrom].filter(Boolean))];
   const file = runFiles.find(f => data(f).machine === m.id);
-  const then = !p.scaledFrom ? '' : r.prompt !== prompt.tokens ? `; the ${prompt.tokens}-token prompt${crew > 1 ? ' and the crew' : ''} estimated from it` : '; the crew numbers estimated from it';
-  if (r.source === 'measured') console.log(`  data/${file}: ${r.model} ${r.quant}, ${r.prompt}-token prompt, one request: reading ${r.ppTps} tok/s, writing ${r.tgTps} tok/s, weights ${r.weightsGB} GB (measured ${r.date})${then}`);
-  else console.log(`  data/${file}: ${r.model} ${r.quant}, used for the ${r.prompt}-token prompt (${r.point}): ${r.ppTps != null ? `reading ${r.ppTps} tok/s, ` : 'reading estimated, '}writing ${r.tgTps} tok/s; ${r.engine}; reported by ${r.by}, ${r.date}${then}  ${r.link}`);
+  used.forEach(r => {
+    const roles = [p.measured === r && 'this setup', p.scaledFrom === r && 'scales the writing', p.readFrom === r && 'gives the reading'].filter(Boolean).join(', ');
+    const nums = `${r.ppTps != null ? `reading ${r.ppTps} tok/s` : 'no reading speed'}, ${r.tgTps != null ? `writing ${r.tgTps} tok/s` : 'no writing speed'}`;
+    if (r.source === 'measured') console.log(`  data/${file}: ${r.model} ${r.bits}-bit ${r.quant}, ${r.prompt}-token prompt (${roles}): ${nums}, weights ${r.weightsGB} GB (measured ${r.date})`);
+    else console.log(`  data/${file}: ${r.model} ${r.bits}-bit ${r.quant}, used for the ${r.prompt}-token prompt (${roles}; ${r.point}): ${nums}; ${r.engine}; reported by ${r.by}, ${r.date}  ${r.link}`);
+  });
 });

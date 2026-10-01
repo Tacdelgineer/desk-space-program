@@ -17,19 +17,31 @@
   // A run (data/measured/<machine>.json or data/reported/<machine>.json: same model, compression and prompt, one
   // request) replaces the estimated speeds, and the weights' size if it has one; everything else stays estimated.
   // p.measured is the run, p.source says where the writing speed comes from ('measured', 'reported' or 'estimated'),
-  // p.readSource the same for reading (a reported run may have no reading speed).
-  // Without a run for exactly this setup, the nearest run on the same machine, model and compression (one request, the
-  // closest prompt length) still sets the scale: the estimated memory time per step is stretched so that it matches the
-  // run at the run's prompt length, and reading uses the run's reading speed (p.scaledFrom, still estimated). That is
-  // how a crew, or another prompt, is estimated from one measured or reported request.
+  // p.readSource the same for reading (a run may have only one of the two).
+  // Without a run for exactly this setup, the nearest run on the same machine and model (the same compression and the
+  // closest prompt length first, then another compression) still sets the scale: the estimated memory time per step is
+  // stretched so that it matches the run at the run's prompt length and compression, and reading uses the run's reading
+  // speed (p.scaledFrom and p.readFrom, still estimated). That is how a crew, another prompt or another compression is
+  // estimated from one measured or reported request.
   // A discrete GPU (m.tableOnHost) leaves a model's lookup table in the PC's own memory, as llama.cpp does, so only the
   // rest has to fit on the card: p.weightsGB is what sits in the machine's memory, p.hostTableGB what stays outside.
+  //
+  // Mixture of experts: a step doesn't get faster in step with the bus. Fitted to the same file (Qwen3.6 35B-A3B,
+  // UD-Q4_K_M, llama.cpp) measured on the Spark (66.9 tokens/s at 273 GB/s) and reported for the RTX 5090 (271 at
+  // 1,792 GB/s): the experts' bytes move at 0.46 of the bandwidth, plus 1.7 ms per step for routing and the many small
+  // expert kernels. The Strix Halo's reported run (60.7 tokens/s at 256 GB/s) comes out at 62.7. The old rule, 0.5 of
+  // the bandwidth and no fixed time, put the 5090 at 513.
+  const MOE_EFF = 0.46, MOE_STEP_S = 0.0017, DENSE_EFF = 0.7;
+  let BPP = { 16: 2.0, 8: 1.06, 4: 0.57 };
+  const setPrecisions = list => { BPP = {}; list.forEach(p => { BPP[p.id] = p.bpp; }); };
   function calc(m, model, prec, prompt, crew) {
     const n = crew || 1;
-    const run = measuredRun(m, model, prec, prompt, n), base = run || nearestRun(m, model, prec, prompt);
-    const has = k => !!base && base[k] != null;
-    const tableGB = has('tableGB') ? base.tableGB : (model.table || 0) * prec.bpp;
-    const weightsGB = has('weightsGB') ? base.weightsGB : (model.total + (model.table || 0)) * prec.bpp;
+    const run = measuredRun(m, model, prec, prompt, n);
+    const tgBase = run && run.tgTps != null ? run : nearestRun(m, model, prec, prompt, 'tgTps');   // sets the writing scale
+    const ppBase = run && run.ppTps != null ? run : nearestRun(m, model, prec, prompt, 'ppTps');   // gives the reading speed
+    const file = [run, nearestRun(m, model, prec, prompt, 'weightsGB')].find(r => r && r.bits === prec.id && r.weightsGB != null) || null;
+    const tableGB = file && file.tableGB != null ? file.tableGB : (model.table || 0) * prec.bpp;
+    const weightsGB = file ? file.weightsGB : (model.total + (model.table || 0)) * prec.bpp;
     const hostGB = m.tableOnHost ? tableGB : 0, cardGB = weightsGB - hostGB;
     const stateMB = model.stateMB || 0, seen = t => model.attnBudget ? Math.min(model.attnBudget, t) : t;
     const kvGB = (model.kvMB * (prompt.tokens + ANSWER) + stateMB) / 1024;  // one request
@@ -37,16 +49,20 @@
     const needGB = cardGB + kvTotal, usable = m.memGB - m.reserveGB, fits = needGB <= usable;
     const activeGB = model.active * prec.bpp;
     const avgKvAt = tokens => (model.kvMB * seen(tokens + ANSWER / 2) + stateMB) / 1024;
-    const eff = model.moe ? 0.5 : 0.7;
     const flops = 0.5 * m.tflops * 1e12;
-    const memAt = (tokens, n) => ((model.moe ? Math.min(weightsGB - tableGB, activeGB * n) : activeGB) + n * avgKvAt(tokens)) / (eff * m.bw);
-    const memEst = n => memAt(prompt.tokens, n);
+    // the memory time of one step, at a compression of bpp bytes per parameter
+    const memAt = (tokens, n, bpp) => {
+      const kv = n * avgKvAt(tokens);
+      if (!model.moe) return (model.active * bpp + kv) / (DENSE_EFF * m.bw);
+      const experts = bpp === prec.bpp ? weightsGB - tableGB : model.total * bpp;
+      return (Math.min(experts, model.active * bpp * n) + kv) / (MOE_EFF * m.bw) + MOE_STEP_S;
+    };
     const stepMath = n => n * 2 * model.active * 1e9 / flops;
-    const kMem = has('tgTps') ? Math.max(1 / base.tgTps - stepMath(1), 1e-6) / memAt(base.prompt, 1) : 1;
-    const stepMem = n => memEst(n) * kMem;
+    const kMem = tgBase ? Math.max(1 / tgBase.tgTps - stepMath(1), 1e-6) / memAt(tgBase.prompt, 1, BPP[tgBase.bits] || prec.bpp) : 1;
+    const stepMem = n => memAt(prompt.tokens, n, prec.bpp) * kMem;
     const tMem = stepMem(n), tMath = stepMath(n), step = run && run.tgTps ? 1 / run.tgTps : Math.max(tMem, tMath);
     const writeTps = 1 / step, totalTps = n / step;                       // per request, all requests
-    const readTps = has('ppTps') ? base.ppTps : flops / (2 * model.active * 1e9);
+    const readTps = ppBase ? ppBase.ppTps : flops / (2 * model.active * 1e9);
     const readS = n * prompt.tokens / readTps, writeS = ANSWER / writeTps;
     const busyWrite = Math.min(1, tMath / step), busWrite = Math.min(1, tMem / step), gpuMax = tMath >= tMem;
     const chunk = 512, readBytes = model.moe ? Math.min(cardGB, activeGB * 8) : cardGB;
@@ -57,7 +73,8 @@
     for (let k = 1; k <= 4096; k++) if (stepMath(k) >= stepMem(k)) { crewGpu = k; break; }
     const crewMem = Math.max(0, Math.floor((usable - cardGB) / kvGB));
     const source = run && run.tgTps ? run.source : 'estimated', readSource = run && run.ppTps != null ? run.source : 'estimated';
-    return { crew: n, measured: run || null, source, readSource, scaledFrom: run ? null : base, weightsGB: cardGB, tableGB: tableGB - hostGB, hostTableGB: hostGB, kvGB, kvTotal, needGB, usable, fits, writeTps, totalTps, readTps, readS, writeS, totalS: readS + writeS, busyWrite, busWrite, gpuMax, busRead, crewGpu, crewMem };
+    const scaledFrom = source === 'estimated' ? tgBase : null, readFrom = readSource === 'estimated' ? ppBase : null;
+    return { crew: n, measured: run || null, source, readSource, scaledFrom, readFrom, weightsGB: cardGB, tableGB: tableGB - hostGB, hostTableGB: hostGB, kvGB, kvTotal, needGB, usable, fits, writeTps, totalTps, readTps, readS, writeS, totalS: readS + writeS, busyWrite, busWrite, gpuMax, busRead, crewGpu, crewMem };
   }
 
   // A model picked with the size handle: dense, sizeB billion parameters. Its prompt memory per token is
@@ -121,14 +138,15 @@
     if (!f || crew !== 1 || !model) return null;
     return (f.runs || []).find(r => r.model === model.id && r.bits === prec.id && r.prompt === prompt.tokens) || null;
   }
-  // the run on the same machine, model and compression whose prompt length is closest (by ratio) to this prompt
-  function nearestRun(m, model, prec, prompt) {
+  // the run on the same machine and model, with the number key (tgTps, ppTps, weightsGB) when one is given, that is
+  // closest to this setup: the same compression first, then the closest prompt length (by ratio)
+  function nearestRun(m, model, prec, prompt, key) {
     const f = runFiles[m.id];
     if (!f || !model) return null;
     let best = null, bestD = Infinity;
     (f.runs || []).forEach(r => {
-      if (r.model !== model.id || r.bits !== prec.id) return;
-      const d = Math.abs(Math.log(r.prompt / prompt.tokens));
+      if (r.model !== model.id || (key && r[key] == null)) return;
+      const d = Math.abs(Math.log(r.prompt / prompt.tokens)) + (r.bits === prec.id ? 0 : 100 + Math.abs(Math.log((BPP[r.bits] || 1) / prec.bpp)));
       if (d < bestD) { best = r; bestD = d; }
     });
     return best;
@@ -145,5 +163,5 @@
     }));
   }
 
-  DSP.model = { ANSWER, pick, calc, sizedModel, fmtS, fmtT, fmtGB, pct, plain, archModel, setRuns, setMeasured: setRuns, measuredFor, loadData };
+  DSP.model = { ANSWER, pick, calc, sizedModel, fmtS, fmtT, fmtGB, pct, plain, archModel, setRuns, setMeasured: setRuns, setPrecisions, measuredFor, loadData };
 })(window.DSP = window.DSP || {});

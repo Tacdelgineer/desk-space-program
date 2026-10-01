@@ -20,7 +20,7 @@
   const { ANSWER, pick, calc, sizedModel, fmtS, fmtT, fmtGB, pct, plain, archModel } = DSP.model;
   const fmtB = b => b >= 1000 ? (b / 1000).toFixed(1) + 'T' : (b < 10 ? (Math.round(b * 10) / 10) : Math.round(b)) + 'B';
 
-  DSP.model.loadData(['data-machines', 'data-models', 'data-measured', 'data-reported-strix', 'data-reported-pro6000']).then(([machinesFile, modelsFile, ...runFiles]) => {
+  DSP.model.loadData(['data-machines', 'data-models', 'data-measured', 'data-reported-strix', 'data-reported-pro6000', 'data-reported-rtx5090', 'data-reported-mac']).then(([machinesFile, modelsFile, ...runFiles]) => {
     DSP.model.setRuns(...runFiles);
     start(machinesFile, modelsFile);
   }).catch(err => {
@@ -44,6 +44,7 @@
     const MACHINES = machinesFile.machines.map(plain).map(m => Object.assign(m, { short: WORDS[m.id].short }));
     const MODELS = modelsFile.models.map(archModel);
     const PRECS = modelsFile.precisions.map(plain);
+    DSP.model.setPrecisions(PRECS);
     const HANDLE = plain(modelsFile.sizeHandle);
     const PROMPTS = [
       { id: 'q', short: 'Question', name: 'a quick question', text: 'Why does my GPU feel slow?' },
@@ -406,10 +407,13 @@
 
     // Where the speeds on the big number come from, in words
     function runLine(p, w) {
-      const r = p.measured;
-      if (!r) return p.scaledFrom ? 'Estimated from the ' + p.scaledFrom.source + ' ' + (p.scaledFrom.promptTokens || p.scaledFrom.prompt).toLocaleString('en-US') + '-token run on the ' + w.short + '.' : 'Estimated for the ' + w.short + '.';
-      if (r.source === 'measured') return 'Measured on the ' + w.short + ' (' + r.quant + ', llama.cpp).';
-      return 'Reported for the ' + w.short + ' by ' + r.by + ' (' + r.quant + ', llama.cpp)' + (p.readSource === 'estimated' ? '; reading estimated.' : '.');
+      const r = p.measured, how = x => x.quant + ', ' + (x.eng || 'llama.cpp'), s = p.scaledFrom;
+      if (!r || p.source === 'estimated') {
+        const est = s ? 'Estimated from the ' + s.source + ' ' + (s.promptTokens || s.prompt).toLocaleString('en-US') + '-token' + (s.bits !== sel.prec ? ' ' + s.bits + '-bit' : '') + ' run on the ' + w.short : 'Estimated for the ' + w.short;
+        return est + (r && p.readSource !== 'estimated' ? '; reading ' + r.source + ' (' + how(r) + ').' : '.');
+      }
+      if (r.source === 'measured') return 'Measured on the ' + w.short + ' (' + how(r) + ').';
+      return 'Reported for the ' + w.short + ' by ' + r.by + ' (' + how(r) + ')' + (p.readSource === 'estimated' ? '; reading estimated.' : '.');
     }
     function sourceWords(p) {
       if (p.source === p.readSource) return { measured: 'Measured.', reported: 'Reported by others.', estimated: 'Estimated.' }[p.source];
@@ -646,14 +650,15 @@
       const clk = Math.max(...runs.map(r => r.gpuClockMaxMHz || 0));
       li.textContent = 'Measured speeds replace the estimates where they exist: the DGX Spark running ' + names.join(', ') + ' with llama.cpp\'s llama-server, ' +
         'the question (300 tokens) and document (8,000 tokens) prompts, 150 tokens out, one request, the middle of three runs (' + runs.map(r => r.date).sort().pop() + (clk ? ', GPU clock at most ' + clk.toLocaleString('en-US') + ' MHz' : '') + '). ' +
-        'Reported speeds stand in for the Strix Halo: someone else\'s published llama.cpp runs on a Ryzen AI Max+ 395 with 128 GB (' + reportedNames('strix') + '; the sources are linked in data/reported/strix.json). ' +
-        'The RTX Pro 6000 has one: ' + reportedNames('pro6000') + ' with a 22,695-token prompt, which stands for the codebase prompt (data/reported/pro6000.json). ' +
-        'Where a machine has a run for the same model at another prompt length, or for one request when a crew runs, that run sets the scale for the estimate. ' +
-        'Everything else is estimated: the RTX 5090 and the Mac Studio, 8- and 16-bit, Qwen3.8-Max, and the GPU math used.';
+        'Reported speeds come from other people\'s published runs, each linked in its file: the Strix Halo\'s llama.cpp runs on a Ryzen AI Max+ 395 with 128 GB (' + reportedNames('strix') + '; data/reported/strix.json), ' +
+        'the RTX 5090\'s llama-bench runs (' + reportedNames('rtx5090') + '; data/reported/rtx5090.json), the Mac Studio M3 Ultra\'s MLX runs, the fast engine on a Mac (' + reportedNames('mac') + '; data/reported/mac.json), ' +
+        'and one for the RTX Pro 6000: ' + reportedNames('pro6000') + ' with a 22,695-token prompt, which stands for the codebase prompt (data/reported/pro6000.json). None of them uses speculative decoding. ' +
+        'Where a machine has a run for the same model at another prompt length or compression, or for one request when a crew runs, that run sets the scale for the estimate. ' +
+        'Everything else is estimated: Gemma 4 E4B on the 5090, the Mac and the Pro 6000, most 8- and 16-bit numbers, Qwen3.8-Max, and the GPU math used. Estimates for mixture-of-experts models use a rule fitted to the measured Spark and the reported 5090 running the same Qwen3.6 file.';
     }
     function reportedNames(id) {
       const f = DSP.model.measuredFor(id), runs = (f && f.runs) || [];
-      return [...new Set(runs.map(r => r.name + (r.ppTps == null ? ' (writing only)' : '')))].join(', ');
+      return [...new Set(runs.map(r => r.name + (r.ppTps == null ? ' (writing only)' : '') + (r.tgTps == null && !runs.some(x => x.model === r.model && x.tgTps != null) ? ' (reading only)' : '')))].join(', ');
     }
     realText();
 

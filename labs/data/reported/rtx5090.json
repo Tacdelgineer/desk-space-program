@@ -1,0 +1,19 @@
+{
+  "about": "Published llama.cpp runs for the GeForce RTX 5090 (32 GB): someone else's card and benchmark, never run here. calc() uses a run like a measured one for the same model, compression and prompt, and scales the estimate for the other prompt sizes, compressions and crews from it (tagged 'est. from rep.'). Picked by the Strix Halo's rules: llama.cpp without speculative decoding, the lab's model, the quant closest to the Spark's. One source covers both models: witcheer's rtx-5090-benchmarks (llm-bench-rig), llama-bench on CUDA, every model fully on the card (-ngl 99), the file in benchmarks.csv. Qwen3.6 35B-A3B is the Spark's own UD-Q4_K_M file; Qwen3.8 27B is Q4_K_M (the Spark runs UD-Q4_K_M, 3% smaller). llama-bench reads a batch of prompt tokens from an empty context (pp) and writes 128 tokens from an empty context (tg128). The question (300 tokens) takes pp512 and tg128; the document (8,000 tokens) takes pp8192, a fresh 8,192-token prompt. Writing after an 8,000-token prompt was not published for these two quants, so the document's writing speed is scaled from the question's run (est. from rep.); the same source's Q6_K and IQ3_XXS runs of Qwen3.8 27B keep 95-96% of their writing speed at 8,192 tokens of depth. Not used: Qwen3.8-Flash-Next (it does not fit the card at 4-bit; the source runs a 2-bit file with experts in system RAM, 59.7 tokens/s), the MTP and speculative-decoding rows, and NVIDIA's Gemma 4 chart (blogs.nvidia.com, rtx-ai-garage-open-models: the 5090 writes Gemma 4 E4B 2.3x as fast as an M3 Ultra, llama.cpp b7789, Q4_K_M; a ratio, not a speed).",
+  "machine": "rtx5090",
+  "source": "reported",
+  "runs": [
+    {"model": "q36", "name": "Qwen3.6 35B-A3B", "bits": "4", "quant": "UD-Q4_K_M", "prompt": 300, "ppTps": 9239.86, "tgTps": 270.97, "weightsGB": 22.13,
+      "engine": "llama.cpp llama-bench, CUDA", "eng": "llama.cpp", "point": "pp512 (reading) and tg128 (writing), both from an empty context; 20.61 GiB file", "date": "2026-05-28",
+      "by": "witcheer/rtx-5090-benchmarks", "link": "https://huggingface.co/datasets/witcheer/rtx-5090-benchmarks/blob/main/benchmarks.csv"},
+    {"model": "q36", "name": "Qwen3.6 35B-A3B", "bits": "4", "quant": "UD-Q4_K_M", "prompt": 8000, "ppTps": 8442.99, "weightsGB": 22.13,
+      "engine": "llama.cpp llama-bench, CUDA", "eng": "llama.cpp", "point": "pp8192, a fresh 8,192-token prompt (reading only)", "date": "2026-05-28",
+      "by": "witcheer/rtx-5090-benchmarks", "link": "https://huggingface.co/datasets/witcheer/rtx-5090-benchmarks/blob/main/benchmarks.csv"},
+    {"model": "q27", "name": "Qwen3.8 27B", "bits": "4", "quant": "Q4_K_M", "prompt": 300, "ppTps": 3881.34, "tgTps": 78.94, "weightsGB": 17.09,
+      "engine": "llama.cpp b9653 llama-bench, CUDA", "eng": "llama.cpp", "point": "pp512 (reading) and tg128 (writing), both from an empty context; 15.92 GiB file", "date": "2026-08-14",
+      "by": "witcheer/rtx-5090-benchmarks", "link": "https://huggingface.co/datasets/witcheer/rtx-5090-benchmarks/blob/main/benchmarks.csv"},
+    {"model": "q27", "name": "Qwen3.8 27B", "bits": "4", "quant": "Q4_K_M", "prompt": 8000, "ppTps": 3705.33, "weightsGB": 17.09,
+      "engine": "llama.cpp b9653 llama-bench, CUDA", "eng": "llama.cpp", "point": "pp8192, a fresh 8,192-token prompt (reading only)", "date": "2026-08-14",
+      "by": "witcheer/rtx-5090-benchmarks", "link": "https://huggingface.co/datasets/witcheer/rtx-5090-benchmarks/blob/main/benchmarks.csv"}
+  ]
+}
