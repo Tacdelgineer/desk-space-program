@@ -11,7 +11,7 @@ Status: idea → ready (preset works, numbers filled) → filmed → posted.
 | 1 | 01 Liftoff | My AI box waits 99% of the time | Spark, Qwen3.8 27B, 4-bit, question | GPU (3) while writing | ready |
 | 2 | 01 Liftoff | The fastest gaming GPU can't run this | 5090, Qwen3.8-Flash-Next, 4-bit | memory (2), overflow | ready |
 | 3 | 01 Liftoff | The bigger model writes 5x faster | Spark, Qwen3.8 27B vs Qwen3.6 35B MoE, 4-bit | memory (2), cells flashing | ready |
-| 4 | 01 Liftoff | A long document flips the winner | Spark vs Mac, Qwen3.8 27B, document | overview (1) + race | idea (rework: the 5090 now wins both rounds) |
+| 4 | 01 Liftoff | A long document flips the winner | Spark vs Mac, Qwen3.8 27B, document | overview (1) + race | dropped until the Mac has reported numbers |
 | 5 | 03 Skylab | I gave my idle GPU 32 jobs | Spark, Qwen3.8 27B, crew 1 → 32 | GPU (3) lighting up | ready (filmed in the 01 lab, which has the crew dial) |
 | 6 | 01 Liftoff | Inside a 5090 vs inside a Spark | switch machines, Qwen3.6 35B MoE | overview (1) | ready |
 | 7 | 01 Liftoff | No desk can hold this model | Mac, Qwen3.8-Max, 4-bit | memory (2), overflow | ready |
@@ -35,10 +35,12 @@ Shot list: 1) ... 2) ... 3) ...
 Live lab: https://tacdelgineer.github.io/desk-space-program/01-liftoff/ . Preset parameters: `machine` (spark, rtx5090,
 mac, strix, pro6000), `model` (g4, q36, q27, flash, max, or a size in billions for a dense model), `bits` (4, 8, 16), `prompt` (q, doc, code),
 `crew` (1–64), `shot` (1–4), `speed` (1, 5), `record=1` (interface hidden, the console stays in the picture; the machine
-starts closed, opens at 0.7 s, and launches once the model has loaded and the lid is off), `open=1` (start open; `shot=2`–`4`
+starts closed, opens at 0.7 s, and launches once the model has loaded and the lid is off; in a tall 9:16 window the machine
+fills the width at the top and the console fills it along the bottom), `open=1` (start open; `shot=2`–`4`
 do too, since they look inside).
 In record mode: keys 1–4 move the camera, Space launches again (the console's cover lifts and its switch flips), O closes or
-opens the machine, M switches to the next machine (Spark, 5090, Mac, Strix Halo, RTX Pro 6000, round again; the new one
+opens the machine (so does the console's LID key, or dragging the lid that hangs above the open machine back down), M switches
+to the next machine (Spark, 5090, Mac, Strix Halo, RTX Pro 6000, round again; the old one closes its lid and sinks, the new one
 comes up closed, then opens), H brings the interface back.
 The public page shows the measured numbers once `labs/data/measured/spark.json` is pushed.
 
@@ -92,7 +94,7 @@ Source of each number: the lists above. The dense Qwen3.8 27B on the Spark: 12.8
 Shot list: 1) first link, key 2: the Qwen3.8 27B cells, a sweep through all of them for every token. 2) key 3: 12.8 tokens/s, the GPU mostly dark. 3) second link, key 2: only a few cells flash per token. 4) key 1 overview while the answer races out of the ports.
 
 ### Episode 4
-Status: needs a rework. With the new lineup the flip still happens between the Spark and the Mac (Qwen3.8 27B, question: Spark 12 s measured, Mac 5.0 s est.; document: Spark 23 s measured, Mac 33 s est.), but the 5090 fits this model and wins both rounds (1.9 s, 5.7 s est.), so the race panel never says "the winner changes". Qwen3.8-Flash-Next keeps the 5090 out but doesn't flip (document: Spark 19 s measured, Mac 9.1 s est.). Options: film it as Spark vs Mac only with the race panel hidden, or wait until the Mac is measured (its reading speed is a placeholder, and the Spark read 2-20x slower than its own placeholder said).
+Status: dropped until the Mac has reported numbers. The reason it needed a rework: with the new lineup the flip still happens between the Spark and the Mac (Qwen3.8 27B, question: Spark 12 s measured, Mac 5.0 s est.; document: Spark 23 s measured, Mac 33 s est.), but the 5090 fits this model and wins both rounds (1.9 s, 5.7 s est.), so the race panel never says "the winner changes". Qwen3.8-Flash-Next keeps the 5090 out but doesn't flip (document: Spark 19 s measured, Mac 9.1 s est.). Options: film it as Spark vs Mac only with the race panel hidden, or wait until the Mac is measured (its reading speed is a placeholder, and the Spark read 2-20x slower than its own placeholder said).
 Preset links (Spark vs Mac, for reference): https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q27&bits=4&prompt=q&crew=1&shot=1&speed=5 and https://tacdelgineer.github.io/desk-space-program/01-liftoff/?machine=spark&model=q27&bits=4&prompt=doc&crew=1&shot=1&speed=5
 
 ### Episode 5

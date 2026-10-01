@@ -80,7 +80,29 @@
   // Post: MSAA render -> bloom -> tilt-shift (H,V) -> grade (gamma, vignette, grain)
   const rt = new T.WebGLRenderTarget(1, 1, { samples: renderer.capabilities.isWebGL2 ? 4 : 0, type: T.HalfFloatType });
   const composer = new T.EffectComposer(renderer, rt);
-  composer.addPass(new T.RenderPass(scene, camera));
+  // The scene pass. Normally one camera. In a stacked frame (a 9:16 recording, see setFrame) the main camera draws
+  // everything but the stacked object (the console), then a second camera draws that object alone, with the floor and
+  // the lights, into a band along the bottom of the frame.
+  const camB = new T.PerspectiveCamera(30, 1, 0.5, 900);
+  const stack = { on: false, bandH: 0, object: null };
+  class ScenePass extends T.Pass {
+    constructor() { super(); this.needsSwap = false; }
+    render(r, writeBuffer, readBuffer) {
+      const auto = r.autoClear; r.autoClear = false;
+      r.setRenderTarget(readBuffer); r.clear();
+      if (!stack.on) { r.render(scene, camera); r.autoClear = auto; return; }
+      const obj = stack.object, was = obj.visible;
+      obj.visible = false; r.render(scene, camera); obj.visible = was;
+      const hid = [];
+      scene.children.forEach(c => { if (c !== obj && c !== floor && !c.isLight && c.visible) { c.visible = false; hid.push(c); } });
+      readBuffer.scissor.set(0, 0, readBuffer.width, Math.round(stack.bandH * PR)); readBuffer.scissorTest = true;
+      r.setRenderTarget(readBuffer); r.clear(); r.render(scene, camB);
+      readBuffer.scissorTest = false; r.setRenderTarget(readBuffer);
+      hid.forEach(c => { c.visible = true; });
+      r.autoClear = auto;
+    }
+  }
+  composer.addPass(new ScenePass());
   const bloom = new T.UnrealBloomPass(new T.Vector2(1, 1), 0.55, 0.45, 0.82);
   composer.addPass(bloom);
   const tiltShader = {
@@ -101,15 +123,16 @@
   const tiltH = new T.ShaderPass(tiltShader), tiltV = new T.ShaderPass(tiltShader);
   composer.addPass(tiltH); composer.addPass(tiltV);
   const grade = new T.ShaderPass({
-    uniforms: { tDiffuse: { value: null }, time: { value: 0 }, res: { value: new T.Vector2(1, 1) } },
+    uniforms: { tDiffuse: { value: null }, time: { value: 0 }, res: { value: new T.Vector2(1, 1) }, seam: { value: -1 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: [
-      'uniform sampler2D tDiffuse; uniform float time; uniform vec2 res; varying vec2 vUv;',
+      'uniform sampler2D tDiffuse; uniform float time; uniform vec2 res; uniform float seam; varying vec2 vUv;',
       'vec3 toSRGB(vec3 c){ c = max(c, vec3(0.0)); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0/2.4)) - 0.055, step(0.0031308, c)); }',
       'void main(){',
       '  vec3 c = toSRGB(texture2D(tDiffuse, vUv).rgb);',
       '  vec2 q = (vUv - 0.5) * vec2(res.x / res.y, 1.0);',
       '  c *= mix(0.62, 1.0, smoothstep(1.05, 0.25, length(q)));',
+      '  if (seam > 0.0) c *= mix(0.25, 1.0, smoothstep(0.0, 0.035, abs(vUv.y - seam)));',   // a stacked frame: both views fade into the seam
       '  float n = fract(sin(dot(vUv * res + fract(time) * 91.7, vec2(12.9898, 78.233))) * 43758.5453);',
       '  c += (n - 0.5) * 0.028;',
       '  gl_FragColor = vec4(c, 1.0);',
@@ -267,7 +290,7 @@
   // A tall window (9:16) sees less sideways, so close-ups back off to keep the part in frame.
   function shotPos(s) {
     const pos = new T.Vector3(...s.pos), tgt = new T.Vector3(...s.tgt);
-    if (camera.aspect < 1 && s !== SHOTS['1']) pos.sub(tgt).multiplyScalar(Math.min(2.2, 1.25 / camera.aspect)).add(tgt);
+    if (frameAspect < 1 && s !== SHOTS['1']) pos.sub(tgt).multiplyScalar(Math.min(2.2, 1.25 / frameAspect)).add(tgt);
     return pos;
   }
   // The tilt-shift keeps a band in focus: the whole overview (machine and console) on shot 1, the classic narrow band on the close-ups.
@@ -276,20 +299,24 @@
   function setTilt(t) { [tiltH, tiltV].forEach(p => { p.uniforms.focus.value = t.focus; p.uniforms.band.value = t.band; }); }
   let shot = null, shotKey = '1';
   function goShot(k, instant) {
-    const s = SHOTS[k]; shotKey = k; setTilt(k === '1' ? tiltWide : TILT_CLOSE);
+    const s = SHOTS[k]; shotKey = k; setTilt(k === '1' ? tiltWide : stack.on ? { focus: 0.5, band: 1 } : TILT_CLOSE);
     shot = { pos: shotPos(s), tgt: new T.Vector3(...s.tgt), t: 0 }; controls.autoRotate = false;
     if (instant) { camera.position.copy(shot.pos); controls.target.copy(shot.tgt); shot = null; }
   }
   controls.addEventListener('start', () => { shot = null; });
 
-  // Shot 1 looks down from SHOT1_DIR and fits boxes into the free part of the screen. setFrame({ wide, tall, small })
-  // gives a list of Box3 for each layout: wide (a landscape window), tall (a 9:16 recording) and small (a phone with the
-  // interface showing). onLayout(fn) hears which one is in use before the fit (the console hides on a phone).
+  // Shot 1 looks down from SHOT1_DIR and fits boxes into the free part of the screen. setFrame({ wide, tall, small, focus, stack })
+  // gives a list of Box3 for each layout: wide (a landscape window), tall (a 9:16 recording), small (a phone with the
+  // interface showing) and focus (a screen area handed over by setArea, e.g. a guided tour). stack: { bottom: [Box3],
+  // object } stacks a tall frame: the tall boxes fill the width at the top, as large as they would be alone, and a
+  // second camera draws the object (the console) across the full width of a band along the bottom.
+  // onLayout(fn) hears which layout is in use before the fit (the console hides on a phone).
   const SHOT1_DIR = new T.Vector3(0.2, 0.64, 0.74).normalize();
-  let frames = null, layoutMode = 'wide', onLayoutFn = null;
+  let frames = null, layoutMode = 'wide', onLayoutFn = null, areaFn = null;
   const fitCam = new T.PerspectiveCamera();
-  function fit(boxes, rect) {
-    fitCam.copy(camera);
+  // align: 'bottom' sets the boxes on the rect's bottom edge instead of centring them
+  function fit(boxes, rect, cam, align) {
+    fitCam.copy(cam || camera);
     const pts = [], all = new T.Box3(), v = new T.Vector3(), right = new T.Vector3(), up = new T.Vector3();
     boxes.forEach(b => { all.union(b); for (let i = 0; i < 8; i++) pts.push(new T.Vector3(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z)); });
     const tgt = all.getCenter(new T.Vector3()), tanV = Math.tan(T.MathUtils.degToRad(camera.fov / 2));
@@ -306,20 +333,25 @@
     for (let it = 0; it < 12; it++) {
       project();
       const wpp = 2 * dist * tanV / viewH;                  // world units per pixel at the target's distance
+      const want = align === 'bottom' ? 2 * rect.bottom - (ext.y1 - ext.y0) : rect.top + rect.bottom;
       right.setFromMatrixColumn(fitCam.matrixWorld, 0); up.setFromMatrixColumn(fitCam.matrixWorld, 1);
-      tgt.addScaledVector(right, ((ext.x0 + ext.x1) - (rect.left + rect.right)) / 2 * wpp).addScaledVector(up, ((rect.top + rect.bottom) - (ext.y0 + ext.y1)) / 2 * wpp);
+      tgt.addScaledVector(right, ((ext.x0 + ext.x1) - (rect.left + rect.right)) / 2 * wpp).addScaledVector(up, (want - (ext.y0 + ext.y1)) / 2 * wpp);
       dist *= Math.max((ext.x1 - ext.x0) / (rect.right - rect.left), (ext.y1 - ext.y0) / (rect.bottom - rect.top));
     }
     project();
     return { pos: fitCam.position.toArray(), tgt: tgt.toArray(), ext };
   }
+  // A page part can take over where the scene is framed: setArea(fn), fn() -> { left, right, top, bottom } in pixels, or
+  // null to give it back. While it returns a rect the layout is 'focus' and shot 1 fits frames.focus into that rect.
+  function setArea(fn) { areaFn = fn; resize(); }
 
   const dock = document.getElementById('dock');
   let viewW = 1, viewH = 1;
   const rails = { left: { x: 30, side: -1, top: 0, bottom: 1 }, right: { x: 1, side: 1, top: 0, bottom: 1 } };
   function resize() {
     const hidden = document.body.classList.contains('hide-ui');
-    const mobile = window.innerWidth <= 900 && !hidden;
+    const area = areaFn ? areaFn() : null;
+    const mobile = window.innerWidth <= 900 && !hidden && !area;
     const dockH = mobile ? dock.getBoundingClientRect().height : 0;
     viewW = window.innerWidth; viewH = Math.max(220, window.innerHeight - dockH);
     canvas.style.height = viewH + 'px';
@@ -329,11 +361,12 @@
     camera.aspect = viewW / viewH; camera.updateProjectionMatrix();
     tiltH.uniforms.dir.value.set(1 / (viewW * PR), 0); tiltV.uniforms.dir.value.set(0, 1 / (viewH * PR));
     grade.uniforms.res.value.set(viewW * PR, viewH * PR);
-    layoutMode = mobile ? 'small' : hidden && camera.aspect < 1 ? 'tall' : 'wide';
+    layoutMode = area ? 'focus' : mobile ? 'small' : hidden && camera.aspect < 1 ? 'tall' : 'wide';
     if (onLayoutFn) onLayoutFn(layoutMode);
     let left = 12, right = viewW - 12, top = 12, bottom = viewH - 12;
-    const desktop = window.innerWidth > 900 && !hidden;
-    if (desktop) {
+    const desktop = !area && window.innerWidth > 900 && !hidden;
+    if (area) ({ left, right, top, bottom } = area);
+    else if (desktop) {
       // the free area: right of the page's edge, left of the answer and race panels, above the controls bar when it is pinned open
       // on a short screen the title is compact and the machine goes below it (the stylesheet hides the sticker there)
       left = 30; top = viewH <= 820 ? document.querySelector('.title').getBoundingClientRect().bottom + 10 : 70;
@@ -341,19 +374,37 @@
       bottom = document.body.classList.contains('bar-on') ? document.querySelector('.controls').getBoundingClientRect().top - 12 : viewH - 18;
       if (right - left < viewW * 0.3 || bottom - top < viewH * 0.3) { left = 12; right = viewW - 12; top = 12; bottom = viewH - 12; }
     }
+    // a stacked tall frame: the console's band first (full width, as tall as the console comes out), the machine above it
+    stack.on = layoutMode === 'tall' && !!(frames && frames.stack && frames.stack.object.visible);
+    if (stack.on) {
+      stack.object = frames.stack.object;
+      camera.clearViewOffset();
+      const probe = fit(frames.stack.bottom, { left: 0, right: viewW, top: 0, bottom: viewH });
+      const pad = Math.round(viewW * 0.02);
+      stack.bandH = Math.min(viewH * 0.42, (viewW - 2 * pad) * (probe.ext.y1 - probe.ext.y0) / (probe.ext.x1 - probe.ext.x0) + 2 * pad);
+      bottom = viewH - stack.bandH;
+      camB.copy(camera);
+      camB.setViewOffset(viewW, viewH, 0, -(viewH - stack.bandH / 2 - viewH / 2), viewW, viewH);
+      const fb = fit(frames.stack.bottom, { left: pad, right: viewW - pad, top: bottom + pad, bottom: viewH - pad }, camB);
+      camB.position.fromArray(fb.pos); camB.lookAt(new T.Vector3().fromArray(fb.tgt)); camB.updateMatrixWorld();
+    }
+    grade.uniforms.seam.value = stack.on ? stack.bandH / viewH : -1;
     const cx = (left + right) / 2, cy = (top + bottom) / 2;
-    if (desktop) camera.setViewOffset(viewW, viewH, -(cx - viewW / 2), -(cy - viewH / 2), viewW, viewH); else camera.clearViewOffset();
+    if (desktop || area || stack.on) camera.setViewOffset(viewW, viewH, -(cx - viewW / 2), -(cy - viewH / 2), viewW, viewH); else camera.clearViewOffset();
+    frameAspect = (right - left) / Math.max(1, bottom - top);
     if (frames && frames[layoutMode] && frames[layoutMode].length) {
-      const f = fit(frames[layoutMode], { left, right, top, bottom });
+      const f = fit(frames[layoutMode], { left, right, top, bottom }, camera, stack.on ? 'bottom' : null);
       SHOTS['1'].pos = f.pos; SHOTS['1'].tgt = f.tgt;
       const y0 = 1 - f.ext.y1 / viewH, y1 = 1 - f.ext.y0 / viewH;        // the fitted boxes in texture v (up)
-      tiltWide = { focus: (y0 + y1) / 2, band: Math.max(0.16, (y1 - y0) / 2 + 0.02) };
+      tiltWide = stack.on ? { focus: 0.5, band: 1 } : { focus: (y0 + y1) / 2, band: Math.max(0.16, (y1 - y0) / 2 + 0.02) };
       if (shotKey === '1') setTilt(tiltWide);
     }
+    if (stack.on && shotKey !== '1') setTilt({ focus: 0.5, band: 1 });
     const titleR = document.querySelector('.title').getBoundingClientRect();
     Object.assign(rails.left, { x: left, top: Math.max(top, titleR.bottom + 16), bottom });
     Object.assign(rails.right, { x: right, top, bottom });
   }
+  let frameAspect = 1;
   function setFrame(f) { frames = f; resize(); }
   function onLayout(fn) { onLayoutFn = fn; }
   window.addEventListener('resize', resize);
@@ -374,7 +425,7 @@
   function aim(ev) {
     const r = canvas.getBoundingClientRect();
     ndc.set((ev.clientX - r.left) / r.width * 2 - 1, -(ev.clientY - r.top) / r.height * 2 + 1);
-    caster.setFromCamera(ndc, camera);
+    caster.setFromCamera(ndc, stack.on && ev.clientY - r.top > viewH - stack.bandH ? camB : camera);   // the stacked console has its own camera
   }
   function pick(ev) {
     aim(ev);
@@ -432,7 +483,8 @@
   }, { capture: true, passive: false });
   // where a pointer ray meets a plane, or null
   const hitPlane = (ray, plane) => ray.intersectPlane(plane, new T.Vector3());
-  const toScreen = (p, out) => { pv.copy(p).project(camera); out = out || {}; out.x = (pv.x * 0.5 + 0.5) * viewW; out.y = (-pv.y * 0.5 + 0.5) * viewH; return out; };
+  // owner: the object the point belongs to (the stacked console is drawn by its own camera)
+  const toScreen = (p, out, owner) => { pv.copy(p).project(stack.on && owner && owner === stack.object ? camB : camera); out = out || {}; out.x = (pv.x * 0.5 + 0.5) * viewW; out.y = (-pv.y * 0.5 + 0.5) * viewH; return out; };
 
   window.addEventListener('keydown', e => {
     if (document.querySelector('dialog[open]') || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -479,5 +531,5 @@
   }
 
   DSP.actions = actions;
-  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, add, setParent, glow, heat, pool, qb, initLabels, setLab, showLabels, setAvoid, SHOTS, setShots, goShot, shotNow: () => shotKey, resize, setFrame, onLayout, layout: () => layoutMode, grab, block, hitPlane, toScreen, view: () => ({ w: viewW, h: viewH }), run, pause };
+  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, add, setParent, glow, heat, pool, qb, initLabels, setLab, showLabels, setAvoid, SHOTS, setShots, goShot, shotNow: () => shotKey, resize, setFrame, setArea, onLayout, layout: () => layoutMode, stacked: () => stack.on, grab, block, hitPlane, toScreen, view: () => ({ w: viewW, h: viewH }), run, pause };
 })(window.DSP = window.DSP || {});

@@ -122,21 +122,24 @@
 
   /* ---------- rig(o): the shell comes off and the cooler rises, driven by k (0 closed, 1 open).
      o: { lid: Group, parts: [{ g: Group, seat: [dx, dy, dz], y: [from, to], z: [from, to] }], guides: material of the
-     dashed exploded-view lines, glow: [lid materials], pipes(k): rebuilds anything stretched between two parts }.
+     dashed exploded-view lines, glow: [lid materials], pipes(k): rebuilds anything stretched between two parts,
+     park: [up, back] where the open lid hangs, relative to its seat (default [9.5, 10]) }.
      seat is where a part sits when the machine is closed, relative to its exploded place. The lid pops, rises and
-     hangs above the machine, then leaves the frame; the cooler rises under it from k = 0.3. ---------- */
+     stays hanging high above the machine, tipped back, like a part in an exploded view: the top of the frame shows
+     its underside, and dragging it back down closes the machine. The cooler rises under it from k = 0.3. ---------- */
   function rig(o) {
     const base = o.parts.map(p => p.g.position.clone()), lid0 = o.lid.position.clone();
+    const park = o.park || [9.5, 10];
     let k = -1, glowK = 0;
     o.glow.forEach(m => { m.emissive = m.emissive || new T.Color(0x000000); });
     function set(v) {
       if (v === k) return;
       k = v;
-      // unlatch (a small pop), rise and hang above the machine for a beat, then fly up and back out of the frame
-      const pop = smooth(0, 0.12, k), rise = smooth(0.08, 0.55, k), fly = smooth(0.5, 0.86, k);
-      o.lid.position.set(lid0.x - 1.5 * fly, lid0.y + 0.45 * pop + 6.5 * rise + 34 * fly * fly, lid0.z - 2.5 * rise - 12 * fly);
-      o.lid.rotation.set(-0.22 * rise - 0.6 * fly, 0, 0.06 * rise + 0.1 * fly);
-      o.lid.visible = k < 0.86;
+      // unlatch (a small pop), then rise and tip back to where it hangs; a little sway as it settles
+      const pop = smooth(0, 0.12, k), rise = smooth(0.08, 0.78, k), settle = Math.sin(smooth(0.6, 1, k) * Math.PI) * 0.04;
+      o.lid.position.set(lid0.x, lid0.y + 0.45 * pop + park[0] * rise, lid0.z - park[1] * rise);
+      o.lid.rotation.set(-0.3 * rise - settle, 0, 0.05 * rise);
+      o.lid.visible = true;
       o.parts.forEach((p, i) => {
         const y = p.y || [0.3, 1], z = p.z || y;
         const ay = 1 - smooth(y[0], y[1], k), az = 1 - smooth(z[0], z[1], k);

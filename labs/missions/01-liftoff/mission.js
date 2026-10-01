@@ -90,30 +90,35 @@
       const b = built[id] = DSP.machines[id].build();
       b.id = id; b.group.visible = false;
       b.shell.plate.print(plateSpec(id));
-      E.grab({ meshes: b.shell.grab, cursor: 'grab', enabled: () => cur === b && !swap && box.k < 0.8, hover: on => { b.lidHot = on; }, down: lidDown, move: lidMove, up: lidUp });
+      E.grab({ meshes: b.shell.grab, cursor: 'grab', enabled: () => cur === b && !swap, hover: on => { b.lidHot = on; }, down: lidDown, move: lidMove, up: lidUp });
       return b;
     }
 
     // the case: k goes 0 (closed) to 1 (open); to is where it is heading. pending: a launch waits for the case to open.
+    // The open lid hangs above the machine (kit/shell.js rig): drag it up to open, back down to close; a tap, O or the
+    // console's LID key opens a closed machine and closes an open one.
     const box = { k: startOpen ? 1 : 0, to: startOpen ? 1 : 0, drag: null, pending: false, openIn: 0 };
-    const OPEN_S = E.reduceMotion ? 0.01 : 1.4, CLOSE_S = E.reduceMotion ? 0.01 : 1.0;
+    const OPEN_S = E.reduceMotion ? 0.01 : 1.4, CLOSE_S = E.reduceMotion ? 0.01 : 1.0, SWAP_CLOSE_S = E.reduceMotion ? 0.01 : 0.6;
     const touchy = window.matchMedia && window.matchMedia('(hover: none)').matches;
-    const openCase = on => { box.to = on === false ? 0 : 1; if (!box.to) box.pending = false; };
+    const openCase = on => { box.to = on === false ? 0 : 1; box.openIn = 0; if (!box.to) box.pending = false; };
     function lidDown() { box.drag = { k0: box.k }; }
     function lidMove(p) {
-      const lift = Math.max(0, p.y0 - p.y) + 0.5 * Math.abs(p.x - p.x0);   // up lifts it, sideways a little
-      box.k = box.to = Math.min(0.7, box.drag.k0 + lift / (E.view().h * 0.5));
+      const dy = p.y0 - p.y, d = dy + 0.5 * Math.abs(p.x - p.x0) * (dy < 0 ? -1 : 1);   // up opens, down closes, sideways helps a little
+      box.k = box.to = Math.max(0, Math.min(1, box.drag.k0 + d / (E.view().h * 0.5)));
     }
     function lidUp(p) {
       const d = box.drag; box.drag = null; if (!d) return;
-      if (!p.moved) openCase(true); else openCase(box.k > d.k0 + 0.05 || box.k > 0.3);
+      if (!p.moved) { openCase(d.k0 < 0.5); return; }
+      openCase(box.k > d.k0 + 0.05 ? true : box.k < d.k0 - 0.1 ? false : d.k0 >= 0.5);
     }
-    let caseLabels = '';
+    let caseLabels = '', lidShown = null;
     function stepCase(dt) {
       if (box.openIn > 0) { box.openIn -= dt; if (box.openIn <= 0) openCase(true); }
-      if (!box.drag && box.k !== box.to) box.k = box.to > box.k ? Math.min(box.to, box.k + dt / OPEN_S) : Math.max(box.to, box.k - dt / CLOSE_S);
+      if (!box.drag && box.k !== box.to) box.k = box.to > box.k ? Math.min(box.to, box.k + dt / OPEN_S) : Math.max(box.to, box.k - dt / (swap ? SWAP_CLOSE_S : CLOSE_S));
       cur.shell.rig.set(box.k);
-      cur.shell.rig.glow(!!cur.lidHot && box.k < 0.8, dt);
+      cur.shell.rig.glow(!!cur.lidHot, dt);
+      const lidOpen = box.to >= 1 || box.openIn > 0;
+      if (lidOpen !== lidShown) { lidShown = lidOpen; deck.setLid(lidOpen); }
       const want = swap ? '' : box.k >= 1 ? 'open' : box.k <= 0 ? 'closed' : '';
       if (want && want !== caseLabels) { caseLabels = want; E.initLabels(want === 'open' ? cur.labels : [{ id: 'lid', at: cur.shell.hint, title: 'Drag the ' + cur.shell.what + ' off' }]); }
       E.showLabels(!!want);
@@ -132,30 +137,37 @@
     }
     activate(sel.machine);
 
-    // The old board sinks into the stand, the new one rises. The specs switch at once.
+    // The old machine closes its lid, then sinks into the stand, and the new one rises closed and opens (if the old one
+    // was open). The specs switch at once.
     const SINK = 16, DOWN = 0.55, UP = 0.75;
     function switchMachine(id) {
       if (id === CUR.id && !swap) return;
       sel.machine = id; CUR = pick(MACHINES, id); ui.setRaceThis(id); // the specs snap now, the board follows
       document.querySelector('.sticker').textContent = WORDS[id].sticker;
-      if (E.reduceMotion) { cur.group.visible = false; box.k = box.to = 0; activate(id); box.openIn = 0.01; applySelection(); return; }
-      swap = { from: cur, to: id, t: 0, flipped: false };
+      if (E.reduceMotion) { const re = box.to >= 1 || box.pending; cur.group.visible = false; box.k = box.to = 0; activate(id); if (re) box.openIn = 0.01; applySelection(); return; }
+      if (swap && swap.stage !== 'up') swap.to = id;               // still on its way down: the new pick takes its place
+      else {
+        const reopen = swap ? swap.reopen : box.to >= 1 || box.pending || box.openIn > 0;
+        swap = { from: cur, to: id, t: 0, stage: box.k > 0 ? 'close' : 'down', reopen };
+        box.to = 0; box.openIn = 0; box.drag = null;
+      }
       applySelection();
     }
     function stepSwap(dt) {
+      if (swap.stage === 'close') { box.to = 0; if (box.k <= 0) { swap.stage = 'down'; swap.t = 0; } return; }   // the lid comes back down first
       swap.t += dt;
-      if (!swap.flipped) {
+      if (swap.stage === 'down') {
         const k = Math.min(1, swap.t / DOWN);
         swap.from.group.position.y = -SINK * k * k;
         if (k >= 1) {
           swap.from.group.visible = false; swap.from.group.position.y = 0;
-          box.k = box.to = 0;                                       // the new machine comes up closed, then opens
-          activate(swap.to); cur.group.position.y = -SINK; swap.flipped = true; swap.t = 0;
+          box.k = box.to = 0;                                       // the new machine comes up closed
+          activate(swap.to); cur.group.position.y = -SINK; swap.stage = 'up'; swap.t = 0;
         }
       } else {
         const k = Math.min(1, swap.t / UP), e = 1 - Math.pow(1 - k, 3);
         cur.group.position.y = -SINK * (1 - e);
-        if (k >= 1) { cur.group.position.y = 0; swap = null; box.openIn = 0.35; }
+        if (k >= 1) { cur.group.position.y = 0; if (swap.reopen || box.pending) box.openIn = 0.35; swap = null; }
       }
     }
 
@@ -353,12 +365,13 @@
     /* ---------- the console (kit/deck.js): same handlers as the bar ---------- */
     const DECK_NAMES = { g4: 'GEMMA E4B', q36: '35B MoE', q27: '27B', flash: 'FLASH-NEXT', max: 'MAX' };
     const deck = DSP.deck.build({
-      at: [5.2, -3, 17.0], scale: 0.9,
+      at: [5.2, -3, 17.7], scale: 0.9,
       machines: MACHINES.map(m => ({ id: m.id, short: WORDS[m.id].short })),
       models: MODELS.filter(m => m.total <= HANDLE.maxB).map(m => ({ id: m.id, t: toV(m.total) / 1000, moe: m.moe, label: DECK_NAMES[m.id] || m.short })),
       prompts: PROMPTS, precs: PRECS, crewMax: CREW_MAX,
       on: {
         machine: pickMachine, prec: pickPrec, prompt: pickPrompt, launch,
+        lid: open => { if (!swap) openCase(open); },
         size: (t, id) => pickSize(t * 1000, id),
         crew: n => pickCrew(n),
         learnPick: (id, name) => midi.pick(id, name)
@@ -369,11 +382,12 @@
       deck.set({ machine: sel.machine, t: toV(curModel().total) / 1000, crew: sel.crew, crewGpu: p.crewGpu, crewMem: p.crewMem, prec: sel.prec, prompt: sel.prompt });
     }
     const midi = DSP.midi.attach({ button: document.getElementById('midi-btn'), deck, toast: ui.toast });
-    // the camera fits the machine, its mug and the console (wide), the machine and the console (a 9:16 recording), or
-    // the machine alone (a phone, where the controls bar stands in for the console)
+    // the camera fits the machine, its mug and the console (wide), the machine above the console in a 9:16 recording
+    // (stacked: each fills the width, the console drawn by its own camera), or the machine alone (a phone, where the
+    // controls bar stands in for the console)
     const B3 = (a, b) => new T.Box3(new T.Vector3(...a), new T.Vector3(...b));
     const MACHINE_BOX = B3([-8.8, -0.2, -8.8], [8.8, 10.2, 8.8]), MUG_BOX = B3([10.5, 0, -8.6], [21.4, 10.6, 2.2]);
-    E.onLayout(mode => { deck.root.visible = mode !== 'small'; });
+    E.onLayout(mode => { deck.root.visible = mode !== 'small' && mode !== 'focus'; });
     E.setAvoid(deck.root);
 
     function finishNote() {
@@ -437,8 +451,7 @@
       if (tag && bigTag.textContent !== tag) { bigTag.textContent = tag; bigTag.classList.toggle('rep', tag === 'reported'); }
       if (sl.textContent !== line) sl.textContent = line;
       const tpsNow = !p.fits ? null : sim.phase === 'reading' ? p.readTps : sim.phase === 'writing' || sim.phase === 'done' ? (crew > 1 ? p.totalTps : p.writeTps) : null;
-      const M_ = curModel();
-      deck.show({ gpu: g, bus: b, tps: tpsNow, lcd: (M_.id === 'size' ? M_.short + ' dense' : M_.name) + '  ' + sel.prec + '-bit  ' + fmtGB(p.weightsGB) + ' GB  |  ' + st });
+      deck.show({ gpu: g, bus: b, tps: tpsNow });
       // labels
       E.setLab('lid', touchy ? 'or tap it' : 'or press O', 'go');
       const used = Math.min(p.needGB, p.usable);
@@ -541,7 +554,7 @@
         line = 'First token after ' + fmtS(f.ttftS) + ' (' + f.promptN + ' prompt tokens read at ' + fmtT(f.ppTps) + ' per second), then ' + f.genN + ' tokens in ' + fmtS(f.genMs / 1000) + '.';
       }
       setText('bignum', n); setText('bigunit', u); setText('speedline', line); bigTag.hidden = !tag;
-      deck.show({ gpu: ph === 'reading' ? 1 : ph === 'writing' ? sim.plan.busyWrite : 0, bus: ph === 'writing' ? sim.plan.busWrite : ph === 'reading' ? sim.plan.busRead : 0, tps: ph === 'writing' || ph === 'done' ? (r.final && r.final.tgTps) || r.tps : null, lcd: 'Live  ' + M.name + '  |  ' + st });
+      deck.show({ gpu: ph === 'reading' ? 1 : ph === 'writing' ? sim.plan.busyWrite : 0, bus: ph === 'writing' ? sim.plan.busWrite : ph === 'reading' ? sim.plan.busRead : 0, tps: ph === 'writing' || ph === 'done' ? (r.final && r.final.tgTps) || r.tps : null });
       const lm = live.models.find(m => m.id === ((r && r.model) || sel.model));
       if (lm && lm.installed && s) {
         const hint = M.name + ', ' + lm.quant + ' file: <b>' + fmtGB(lm.weightsGB) + ' GB</b>' + (lm.tableGB ? ', of which <b>' + fmtGB(lm.tableGB) + ' GB</b> is the lookup table, kept in CPU memory and mapped from the SSD' : '') +
@@ -686,7 +699,7 @@
        5. GO
        ========================================================= */
     if (record) document.body.classList.add('hide-ui');
-    E.setFrame({ wide: [MACHINE_BOX, MUG_BOX, deck.box], tall: [MACHINE_BOX, deck.box], small: [MACHINE_BOX] });
+    E.setFrame({ wide: [MACHINE_BOX, MUG_BOX, deck.box], tall: [MACHINE_BOX], small: [MACHINE_BOX], focus: [MACHINE_BOX], stack: { bottom: [deck.box], object: deck.root } });
     E.camera.position.set(...E.SHOTS['1'].pos); E.controls.target.set(...E.SHOTS['1'].tgt);
     applySelection();
     E.goShot(startShot || '1', true);
@@ -698,6 +711,6 @@
       }, () => {});
     }
     E.run(updateSim, updateUI);
-    window.__lab = { launch, sim, sel, applySelection, switchMachine, busy: () => !!swap, goShot: E.goShot, live, startLive, deck, box, openCase };
+    window.__lab = { launch, sim, sel, applySelection, switchMachine, busy: () => !!swap, goShot: E.goShot, live, startLive, deck, box, openCase, cur: () => cur };
   }
 })(window.DSP = window.DSP || {});

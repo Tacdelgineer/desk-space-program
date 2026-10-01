@@ -30,16 +30,19 @@ Everything below was learned the hard way. Read it before touching the code.
 - **Outside (Session F, 2026-09-30):** every machine starts closed in a stylized shell (gold desktop box, charcoal two-fan
   card cover, aluminium mini desktop 95 mm tall, graphite cut-corner mini PC with a hex top, gunmetal workstation cover with
   a fan at each end; no logos, not the real designs) with a printed spec plate (name, memory, bandwidth). Dragging the lid
-  off, O, or a launch opens it: the lid pops, hangs above the machine, flies off, and the cooler rises from the chip into the
-  exploded view. A new machine comes up closed, then opens. The same coffee mug (82 x 95 mm) stands beside each machine at
+  up, O, the console's LID key or a launch opens it: the lid pops and rises to hang high above the machine (Session G: it no
+  longer flies off, so it can be dragged back down to close), and the cooler rises from the chip into the exploded view.
+  Switching machines closes the old one's lid before it sinks; the new one comes up closed, then opens. The same coffee mug (82 x 95 mm) stands beside each machine at
   its real scale, so it looms over the 150 mm boxes and shrinks next to the 30 cm cards. The plinth runs wider on the right
   for it and has no placard any more.
 - **Mission Control console (kit/deck.js):** a 3D deck on the floor in front of the plinth replaces the bottom bar on a
   desktop: five pads (machine), a long fader (model size, detents at the five presets, MoE ones named in teal), a jog wheel
   (crew 1–64, one lit block per request; the GPU blocks on the machine light up as it turns), a lever (16, 8, 4-bit), three
   toggles (prompt), a launch toggle under a red flip-up cover, needle gauges (GPU math used, memory bus), a 7-segment
-  tokens/s display and a status line. Hover glow, springs on every detent and press. Web MIDI learn (kit/midi.js). The HTML
+  tokens/s display and the LID key (Session G; the status line is gone). Session G gave every printed label its own strip
+  that no control covers from the overview camera, and printed the words on a layer lifted off the paper. Hover glow, springs on every detent and press. Web MIDI learn (kit/midi.js). The HTML
   bar stays for phones and keyboards (desktop: B pins it, Tab shows it); record mode keeps the console and hides all HTML.
+  A 9:16 recording stacks two views: the machine fills the width at the top, the console (its own camera) the bottom band.
 - **Keys:** Space launch (opens the machine first), O open or close, 1–4 camera shots, M next machine, C orbit, H hide UI,
   B controls bar, F fullscreen.
 
