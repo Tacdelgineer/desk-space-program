@@ -5,6 +5,9 @@ One row per Short. The preset link opens the lab in the exact state to film
 `node labs/tools/report.mjs "model=q27&prompt=q&crew=1"` prints them with the source of every input,
 marked (meas.), (rep.), (est. from meas.), (est. from rep.) or (est.).
 Status: idea → ready (preset works, numbers filled) → filmed → posted.
+An episode with a tour can be cut into a Short by script: `node scripts/make-short.mjs <N>` (hook card, the tour
+filmed at 1080x1920 with punch-ins and burned-in captions, the Mission Report end card) writes `shorts/ep<N>.mp4`.
+Review it before marking the episode filmed.
 
 | # | Mission | Hook (0–1 s) | Setup | Close-up | Status |
 |---|---|---|---|---|---|

@@ -9,6 +9,7 @@
     { "id": "moe", "title": "Experts" },
     { "id": "report", "title": "Report" }
   ],
+  "short": {"hook": "The bigger model writes *{moeX:spark}* faster", "key": 1, "lesson": "Each word reads {activeB:q36} of its {totalB:q36} parameters", "next": "Next: I gave my idle GPU 32 jobs"},
   "steps": [
     {
       "act": "dense", "title": "27B: every cell, every word", "cam": "2", "trip": ["memory", "bus", "gpu"],
@@ -45,7 +46,7 @@
       "caption": "The bigger model reads only a slice for each word."
     },
     {
-      "act": "moe", "title": "{moeX} faster on the same machine", "cam": "3", "trip": ["gpu"],
+      "act": "moe", "title": "{moeX} faster on the same machine", "big": 1, "cam": "3", "trip": ["gpu"],
       "state": { "model": "q36", "t": 1.8, "slow": 20 },
       "text": [
         "Both answer the same question on {the}.",

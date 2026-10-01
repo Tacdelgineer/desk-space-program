@@ -1,5 +1,9 @@
 DESK SPACE PROGRAM  -  Shorts template pack (1080x1920, 30 fps)
 
+AUTOMATED VERSION: node scripts/make-short.mjs <episode or tour> builds a Short in this order (hook, footage with
+captions, Mission Report end card, music at -18 dB) straight from a tour; see .claude/skills/desk-lab/references/shorts.md.
+The pack below is for cutting one by hand in CapCut.
+
 FILES (all full-frame, so they drop in at 100% scale with no positioning)
   00_intro_clip_2s.mp4             the inks slide into register, then the GPU lights up. No audio
   01_intro_title_M01..M08.png      logo + mission stamp + mission name, one per mission

@@ -371,3 +371,7 @@ body.showroom-on .answer,body.showroom-on .race,body.showroom-on #labels{display
 @media (min-width:901px){ body.showroom-on .controls{right:30px;transform:none !important;opacity:1 !important;pointer-events:auto !important} }
 @media (max-width:1300px){ .sr-tick{width:11rem;padding:5px 7px 6px} .sr-head b{font-size:1rem} .sr-num b{font-size:1.4rem} }
 @media (max-aspect-ratio:1/1){ .sr-tick{width:8.6rem;gap:1px} .sr-head b{font-size:.85rem} .sr-num b{font-size:1.2rem} .sr-line{display:none} .sr-st{font-size:.62rem} }
+
+/* ---------- render mode (?render=30, scripts/film.mjs): the interface moves with the frame count, not the clock ---------- */
+html.render *,html.render *::before,html.render *::after{transition:none !important;animation:none !important}
+body.tour-short .tour-caption,body.tour-short .tour-bar{display:none !important}

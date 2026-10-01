@@ -9,6 +9,7 @@
     { "id": "write", "title": "Write" },
     { "id": "answer", "title": "Answer" }
   ],
+  "short": {"hook": "Watch *one answer* travel through my AI box", "key": 6, "lesson": "Every word crosses the memory bus: the GPU waits at {busyWrite}", "next": "Next: the bigger model that writes faster"},
   "steps": [
     {
       "act": "load", "title": "The file wakes up", "cam": "4", "trip": ["ssd", "memory"],

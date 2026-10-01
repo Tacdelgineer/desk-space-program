@@ -13,6 +13,7 @@
    Live mode (section 6) switches on when live/bridge.mjs serves the page: a chat box that runs a real model
    on the Spark, real memory, power and temperature, and the Benchmark button.
    The showroom (section 8, showroom.js): ?showroom=1 (&focus=<machine>), V; the desk-corner room (kit/room.js): ?room=1, R.
+   Render mode (kit/engine.js): ?render=30, a fixed-step clock for scripts/film.mjs; &short=1 with a tour: the layout for a Short.
    The guided tour (section 7, kit/tour.js, labs/tours/*.json): ?tour=life|ep1|ep3|ep4, &autoplay=1 to play it through
    for a recording; the console slides away while it runs and comes back for free play.
    ========================================================= */
@@ -808,7 +809,9 @@
     function report(st) {
       return MACHINES.map(m => {
         const x = planOf(Object.assign({}, st, { machine: m.id })), p = x.p, tag = p.crew > 1 ? 'estimated' : TAG(p.source);
-        return { name: WORDS[m.id].short, text: p.fits ? fmtT(p.crew > 1 ? p.totalTps : p.writeTps) + ' tokens/s · ' + fmtS(p.totalS) : 'doesn\'t fit: needs ' + fmtGB(p.needGB) + ' GB', tag: p.fits ? tag : '', done: p.fits };
+        const wSrc = TAG(p.source), doneTag = p.crew > 1 || wSrc !== TAG(p.readSource) ? 'estimated' : wSrc;
+        return { id: m.id, name: WORDS[m.id].short, text: p.fits ? fmtT(p.crew > 1 ? p.totalTps : p.writeTps) + ' tokens/s · ' + fmtS(p.totalS) : 'doesn\'t fit: needs ' + fmtGB(p.needGB) + ' GB', tag: p.fits ? tag : '', done: p.fits,
+          tps: p.fits ? fmtT(p.crew > 1 ? p.totalTps : p.writeTps) : null, doneIn: p.fits ? fmtS(p.totalS) : null, doneTag: p.fits ? doneTag : '', needGB: fmtGB(p.needGB), usableGB: p.usable };
       });
     }
     // where the simulation is at t seconds since enter
@@ -856,9 +859,9 @@
     };
     // every <script type="application/json" id="tour-<id>"> on the page is a tour: ?tour=<id>
     const TOURS = {}; document.querySelectorAll('script[id^="tour-"]').forEach(s => { TOURS[s.id.slice(5)] = s.id; });
-    function startTour(id, autoplay) {
+    function startTour(id, autoplay, short) {
       if (show && show.on()) show.leave();
-      return DSP.model.loadData([TOURS[id] || TOURS.life]).then(([data]) => DSP.tour.start(data, tourLab, { autoplay }));
+      return DSP.model.loadData([TOURS[id] || TOURS.life]).then(([data]) => DSP.tour.start(data, tourLab, { autoplay, short }));
     }
     const tourBtn = document.getElementById('tour-btn');
     if (tourBtn) tourBtn.addEventListener('click', () => startTour('life', false));
@@ -918,7 +921,7 @@
     E.run(updateSim, updateUI);
     if (q.get('room') === '1') toggleRoom(true);
     const tourQ = q.get('tour');
-    if (tourQ && DSP.tour) startTour(TOURS[tourQ] ? tourQ : 'life', q.get('autoplay') === '1').catch(e => console.error('tour', e));
+    if (tourQ && DSP.tour) startTour(TOURS[tourQ] ? tourQ : 'life', q.get('autoplay') === '1', q.get('short') === '1').catch(e => console.error('tour', e));
     else if (q.get('showroom') === '1' && show) show.enter({ focus: alias(q.get('focus'), { spark: 'spark', rtx5090: 'rtx5090', '5090': 'rtx5090', mac: 'mac', strix: 'strix', pro6000: 'pro6000' }) });
     window.__lab = { launch, sim, sel, applySelection, switchMachine, busy: () => !!swap, goShot: E.goShot, live, startLive, deck, box, openCase, cur: () => cur, startTour, tour: DSP.tour, metric, report, show, room: DSP.room, toggleRoom };
   }

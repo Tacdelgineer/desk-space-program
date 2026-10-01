@@ -7,7 +7,9 @@
    On screen: the step card (left), the trip map across the top (SSD -> memory -> bus -> GPU -> port -> you) with a live
    clock, a big caption at the bottom, a scrubber with the acts, 1/2x, 1x, 2x, play/pause, the arrow keys for previous
    and next, Esc to leave, and a "What if..." panel (dense or MoE, machine, crew 1 or 32, 4- or 16-bit). A tall window
-   (9:16) gets the card on top, the machine in the middle and the caption at the bottom. Autoplay (a recording) trims
+   (9:16) gets the card on top, the machine in the middle and the caption at the bottom. start(..., { short: true })
+   (?short=1, for scripts/make-short.mjs) hides the caption and the controls and keeps the lower third clear for the
+   captions burned in later. Autoplay (a recording) trims
    the card to the title and one big number (the chip a step names in `big`, the first by default) and hides What if.
    The tour knows nothing about any one mission: start(data, lab, opts) takes a lab object with
      apply(state) set the selection, seek(t) put the simulation at t, timeline() { readS, totalS, loadS, fits },
@@ -244,6 +246,10 @@
     if (!T) return null;
     const W = window.innerWidth, H = window.innerHeight;
     if (document.body.classList.contains('hide-ui')) return { left: 12, right: W - 12, top: 12, bottom: H - 12 };   // H: the machine alone
+    if (T.short) {                                                     // a Short: its captions are burned in over the lower third later
+      const c = ui.card.getBoundingClientRect(), trip = ui.trip.getBoundingClientRect();
+      return tall() ? { left: 12, right: W - 12, top: Math.max(c.bottom, trip.bottom) + 12, bottom: H * 0.64 } : { left: c.right + 16, right: W - 16, top: trip.bottom + 12, bottom: H * 0.8 };
+    }
     const c = ui.card.getBoundingClientRect(), cap = ui.caption.getBoundingClientRect(), trip = ui.trip.getBoundingClientRect();
     if (tall()) return { left: 12, right: W - 12, top: Math.max(c.bottom, trip.bottom) + 12, bottom: cap.top - 12 };
     const w = ui.what.getBoundingClientRect();
@@ -255,8 +261,9 @@
     opts = opts || {};
     if (!ui) ui = buildUI();
     ui.scrub.innerHTML = '';
-    T = { data, lab, i: 0, stepT: 0, t: 0, rate: 1, playing: !!opts.autoplay, autoplay: !!opts.autoplay, over: {}, broken: false, hold: 0, state: null };
+    T = { data, lab, i: 0, stepT: 0, t: 0, rate: 1, playing: !!opts.autoplay, autoplay: !!opts.autoplay, short: !!opts.short, over: {}, broken: false, hold: 0, state: null };
     document.body.classList.add('tour-on');
+    document.body.classList.toggle('tour-short', T.short);
     document.body.classList.toggle('tour-auto', T.autoplay);
     document.body.classList.toggle('tour-tall', tall());
     window.addEventListener('keydown', onKey, true);
@@ -268,7 +275,7 @@
     if (!T) return;
     const lab = T.lab; T = null;
     window.removeEventListener('keydown', onKey, true);
-    document.body.classList.remove('tour-on', 'tour-auto', 'tour-tall');
+    document.body.classList.remove('tour-on', 'tour-auto', 'tour-tall', 'tour-short');
     if (!quiet) lab.end();
   }
   window.addEventListener('resize', () => { if (T) { document.body.classList.toggle('tour-tall', tall()); fitCaption(); T.lab.layout(); } });
@@ -282,7 +289,7 @@
     const steps = T.data.steps.map((s, i) => {
       const st = Object.assign({}, T.data.base, s.state), d = auto ? dur(i) : null;
       const o = {
-        i, act: (T.data.acts.find(a => a.id === s.act) || {}).title, cam: s.cam || '1', title: fill(s.title, st), caption: fill(s.caption, st),
+        i, act: (T.data.acts.find(a => a.id === s.act) || {}).title, cam: s.cam || '1', state: st, model: T.lab.words('model', st), title: fill(s.title, st), caption: fill(s.caption, st),
         text: s.text.map(p => fill(p, st)), metaphor: fill(s.metaphor, st), chips: s.chips.map(c => chipOf(c, st)), big: s.report ? null : chipOf(s.chips[s.big || 0], st),
         report: s.report ? T.lab.report(st) : null, start: auto ? at : null, end: auto ? at + d : null
       };

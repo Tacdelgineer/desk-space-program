@@ -9,6 +9,7 @@
     { "id": "write", "title": "Write" },
     { "id": "report", "title": "Report" }
   ],
+  "short": {"hook": "My AI box waits *{idleWrite}* of the time", "key": 1, "lesson": "The GPU does {busyWrite} math, then waits for memory", "next": "Next: the fastest gaming GPU tries a bigger model"},
   "steps": [
     {
       "act": "read", "title": "Full power, for a blink", "cam": "3", "trip": ["gpu"],

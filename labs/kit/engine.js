@@ -10,6 +10,15 @@
   const T = window.THREE;
   if (T.ColorManagement) T.ColorManagement.legacyMode = false;
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // RENDER MODE (?render=30): a fixed-step clock for filming (scripts/film.mjs). Nothing runs by itself: renderFrames(n)
+  // draws n frames of exactly 1/30 s each. Math.random is seeded, so two renders of the same page match, and CSS
+  // transitions are off, so the interface is in step with the frame count, not the wall clock.
+  const RENDER = Math.max(0, Math.min(120, +(new URLSearchParams(location.search).get('render') || 0)));
+  if (RENDER) {
+    let s = 20260930 >>> 0;
+    Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    document.documentElement.classList.add('render');
+  }
 
   // Late-bound buttons the keys call. The mission sets launch, nextMachine, toggleCase, toggleShowroom, toggleRoom and
   // escape; ui.js sets toggleUI and toggleBar.
@@ -510,14 +519,14 @@
      ========================================================= */
   // pause(true) stops drawing the scene (the panels keep updating): live mode uses it while the Spark benchmarks
   // itself, since a lab open on the Spark draws on the same GPU the model runs on.
-  let paused = false;
+  let paused = false, renderFrames = () => 0;
   const pause = on => { paused = !!on; };
   function run(step, ui) {
     const clock = new T.Clock();
-    let first = true, uiTick = 0;
-    (function frame() {
-      const dt = Math.min(clock.getDelta(), 0.05), time = clock.elapsedTime;
-      if (paused && !first) { uiTick += dt; if (uiTick > 0.08) { uiTick = 0; ui(); } requestAnimationFrame(frame); return; }
+    let first = true, uiTick = 0, time = 0;
+    function frame(dt) {
+      time += dt;
+      if (paused && !first) { uiTick += dt; if (uiTick > 0.08) { uiTick = 0; ui(); } return; }
       step(dt, time);
       if (shot) {
         shot.t += dt; const k = 1 - Math.exp(-dt * (reduceMotion ? 30 : 3.2));
@@ -530,10 +539,11 @@
       composer.render();
       updateLabels();
       if (first) { first = false; document.getElementById('loading').classList.add('gone'); }
-      requestAnimationFrame(frame);
-    })();
+    }
+    if (RENDER) { renderFrames = n => { for (let i = 0; i < (n || 1); i++) frame(1 / RENDER); return time; }; frame(0); return; }
+    (function loop() { frame(Math.min(clock.getDelta(), 0.05)); requestAnimationFrame(loop); })();
   }
 
   DSP.actions = actions;
-  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, add, setParent, glow, heat, key, floor, pool, qb, initLabels, setLab, showLabels, setAvoid, SHOTS, defaultShots: () => SHOTS_DEFAULT, setShots, goShot, shotNow: () => shotKey, resize, setFrame, setArea, onLayout, layout: () => layoutMode, stacked: () => stack.on, grab, block, hitPlane, toScreen, view: () => ({ w: viewW, h: viewH }), run, pause };
+  DSP.engine = { T, reduceMotion, canvas, renderer, scene, camera, controls, canvasTex, std, mesh, add, setParent, glow, heat, key, floor, pool, qb, initLabels, setLab, showLabels, setAvoid, SHOTS, defaultShots: () => SHOTS_DEFAULT, setShots, goShot, shotNow: () => shotKey, resize, setFrame, setArea, onLayout, layout: () => layoutMode, stacked: () => stack.on, grab, block, hitPlane, toScreen, view: () => ({ w: viewW, h: viewH }), run, pause, renderMode: RENDER, renderFrames: n => renderFrames(n) };
 })(window.DSP = window.DSP || {});

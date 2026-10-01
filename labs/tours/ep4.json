@@ -9,6 +9,7 @@
     { "id": "document", "title": "Document" },
     { "id": "report", "title": "Report" }
   ],
+  "short": {"hook": "The Mac beats my Spark, until I paste a *document*", "key": 2, "lesson": "Writing is memory, reading is math", "next": "Next: I gave my idle GPU 32 jobs"},
   "steps": [
     {
       "act": "question", "title": "A quick question: the Mac wins", "cam": "2", "trip": ["memory", "bus", "gpu"],

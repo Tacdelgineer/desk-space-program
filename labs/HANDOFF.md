@@ -216,5 +216,9 @@ Not now: drag-to-load crates, pulling the cooler off by hand, sound, share links
   against the hand-built files before those went). The showroom (`showroom.js`, V): all five on one stand at their
   true sizes (0.06 units per mm), one question on all five, a ticker over each, click to open one; only the picked
   machine has its insides built. The room (`kit/room.js`, R): a dim desk corner round whichever stand is showing.
+- **Session H, part 3:** render mode (`?render=30`, a fixed-step clock), `scripts/film.mjs` (any tour at 1080x1920
+  and 1920x1080, 30 fps, about 45 ms a frame on the GB10) and `scripts/make-short.mjs` (hook card, footage with
+  punch-ins and burned-in captions, the Mission Report end card, music at -18 dB if `assets/music/` has a file).
+  The first two Shorts (episode 1, the main tour) are in `shorts/` for review; making them routine waits on that.
 - **`EPISODES.md`** is the list of Shorts. Each one has a preset link that opens the lab in the
   exact state to film. Keep it in step with the missions.

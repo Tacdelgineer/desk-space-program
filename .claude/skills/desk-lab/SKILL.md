@@ -29,7 +29,7 @@ the screenprint theme, commit per part) apply to everything below.
 | `labs/data/` | `machines.json`, `models.json`, `measured/`, `reported/`, `missions.json` | add a spec or a run |
 | `labs/tours/*.json` | one tour per file; numbers only as `{metric}` placeholders | write a tour |
 | `labs/tools/` | `shoot.mjs` (deterministic screenshots, pixel compare), `report.mjs` (Mission Report numbers), `tour-text.mjs` (a tour with its numbers filled in) | |
-| `scripts/` | `check.mjs` (/check), `preview.mjs` (link-preview image) | |
+| `scripts/` | `check.mjs` (/check), `preview.mjs` (link-preview image), `film.mjs` (a tour to video, render mode), `make-short.mjs` (a 9:16 Short) | |
 | `EPISODES.md` | the Shorts: one row and one block per episode | plan an episode |
 | `labs/HANDOFF.md`, `labs/kit/README.md` | design notes and gotchas; the detailed file map | keep in step |
 
@@ -51,6 +51,10 @@ rules: `references/tours-and-episodes.md`.
 **Plan an episode** (`/new-episode <idea>`): numbers from `labs/tools/report.mjs`, a row and a block in
 `EPISODES.md`, preset links, a guess card, a shot list, and its own tour `labs/tours/ep<N>.json`.
 `references/tours-and-episodes.md`.
+
+**Make a Short** (`/make-short <episode or tour>`): the tour needs a `short` block; `node scripts/make-short.mjs <id>`
+films it at 1080x1920 (render mode, fixed-step clock) and cuts hook card, footage with punch-ins and captions, Mission
+Report end card, music if any, into `shorts/<id>.mp4`. Watch the frames before calling it done. `references/shorts.md`.
 
 **Test** (`/check`): `node scripts/check.mjs` builds, puts the key states at 1920x1080 and 1080x1920 on
 `out/check/contact-sheet.png` and fails on anything private in `dist/`. Look at the sheet. After engine, parts or
